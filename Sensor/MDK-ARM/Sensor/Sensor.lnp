@@ -1,0 +1,26 @@
+--cpu=Cortex-M4.fp.sp
+"sensor\startup_stm32f407xx.o"
+"sensor\main.o"
+"sensor\gpio.o"
+"sensor\usart.o"
+"sensor\stm32f4xx_it.o"
+"sensor\stm32f4xx_hal_msp.o"
+"sensor\stm32f4xx_hal_uart.o"
+"sensor\stm32f4xx_hal_rcc.o"
+"sensor\stm32f4xx_hal_rcc_ex.o"
+"sensor\stm32f4xx_hal_flash.o"
+"sensor\stm32f4xx_hal_flash_ex.o"
+"sensor\stm32f4xx_hal_flash_ramfunc.o"
+"sensor\stm32f4xx_hal_gpio.o"
+"sensor\stm32f4xx_hal_dma_ex.o"
+"sensor\stm32f4xx_hal_dma.o"
+"sensor\stm32f4xx_hal_pwr.o"
+"sensor\stm32f4xx_hal_pwr_ex.o"
+"sensor\stm32f4xx_hal_cortex.o"
+"sensor\stm32f4xx_hal.o"
+"sensor\stm32f4xx_hal_exti.o"
+"sensor\system_stm32f4xx.o"
+--strict --scatter "Sensor\Sensor.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "Sensor.map" -o Sensor\Sensor.axf
