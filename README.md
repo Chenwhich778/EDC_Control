@@ -3,7 +3,6 @@
 ## 🚀项目概述
 
 本仓库为EDC_Control项目的代码管理仓库，用于团队协作开发电子设计竞赛相关控制系统。  
-**Our Team：Chen Weiqi, Hu Yifei, Wang Weicong**
 
 ## 🗂 项目结构（大概）
 
