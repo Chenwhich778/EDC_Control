@@ -456,28 +456,6 @@ int main(void)
 		// 清除之前的状态
     sensor_status = 0;
     
-    // 读取所有传感器状态并记录（低电平有效）
-    /*if(HAL_GPIO_ReadPin(GPIOF, L1_Pin) == GPIO_PIN_RESET) 
-      sensor_status |= 0x01;  // L1 传感器激活
-      
-    if(HAL_GPIO_ReadPin(GPIOA, L2_Pin) == GPIO_PIN_RESET) 
-      sensor_status |= 0x02;  // L2 传感器激活
-      
-    if(HAL_GPIO_ReadPin(GPIOA, L3_Pin) == GPIO_PIN_RESET) 
-      sensor_status |= 0x04;  // L3 传感器激活
-      
-    if(HAL_GPIO_ReadPin(GPIOF, L4_Pin) == GPIO_PIN_RESET) 
-      sensor_status |= 0x08;  // L4 传感器激活
-      
-    if(HAL_GPIO_ReadPin(GPIOF, L5_Pin) == GPIO_PIN_RESET) 
-      sensor_status |= 0x10;  // L5 传感器激活
-      
-    if(HAL_GPIO_ReadPin(GPIOG, L6_Pin) == GPIO_PIN_RESET) 
-      sensor_status |= 0x20;  // L6 传感器激活
-      
-    if(HAL_GPIO_ReadPin(GPIOG, L7_Pin) == GPIO_PIN_RESET) 
-      sensor_status |= 0x40;  // L7 传感器激活*/
-    
     // 读取MPU6050数据
     MPU6050_Read_All(&hi2c1, &MPU6050);
 
