@@ -59,6 +59,20 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define PWM2_Pin GPIO_PIN_6
 #define PWM2_GPIO_Port GPIOE
+#define Direction_0_Pin GPIO_PIN_5
+#define Direction_0_GPIO_Port GPIOF
+#define Direction_1_Pin GPIO_PIN_6
+#define Direction_1_GPIO_Port GPIOF
+#define Direction_2_Pin GPIO_PIN_0
+#define Direction_2_GPIO_Port GPIOC
+#define Direction_3_Pin GPIO_PIN_1
+#define Direction_3_GPIO_Port GPIOC
+#define Direction_4_Pin GPIO_PIN_2
+#define Direction_4_GPIO_Port GPIOC
+#define Direction_5_Pin GPIO_PIN_3
+#define Direction_5_GPIO_Port GPIOC
+#define Direction_6_Pin GPIO_PIN_3
+#define Direction_6_GPIO_Port GPIOA
 #define OLED_SCK_Pin GPIO_PIN_13
 #define OLED_SCK_GPIO_Port GPIOF
 #define OLED_CS_Pin GPIO_PIN_12
@@ -71,10 +85,10 @@ void Error_Handler(void);
 #define OLED_SDA_GPIO_Port GPIOD
 #define bin1_Pin GPIO_PIN_7
 #define bin1_GPIO_Port GPIOC
-#define BIN2_Pin GPIO_PIN_6
-#define BIN2_GPIO_Port GPIOB
-#define BIN1_Pin GPIO_PIN_7
+#define BIN1_Pin GPIO_PIN_4
 #define BIN1_GPIO_Port GPIOB
+#define BIN2_Pin GPIO_PIN_5
+#define BIN2_GPIO_Port GPIOB
 #define bin2_Pin GPIO_PIN_8
 #define bin2_GPIO_Port GPIOB
 #define PWM1_Pin GPIO_PIN_9
