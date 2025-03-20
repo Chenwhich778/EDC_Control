@@ -3,19 +3,19 @@
         {
             "name": "1.12PWMhal",
             "includePath": [
-                "e:\\ExKeilFile\\MotorControl\\Core\\Inc",
-                "e:\\ExKeilFile\\MotorControl\\Drivers\\STM32F4xx_HAL_Driver\\Inc",
-                "e:\\ExKeilFile\\MotorControl\\Drivers\\STM32F4xx_HAL_Driver\\Inc\\Legacy",
-                "e:\\ExKeilFile\\MotorControl\\Drivers\\CMSIS\\Device\\ST\\STM32F4xx\\Include",
-                "e:\\ExKeilFile\\MotorControl\\Drivers\\CMSIS\\Include",
-                "e:\\ExKeilFile\\MotorControl\\Drivers\\OLED",
+                "d:\\IDE\\STM32CubeMX\\Files\\Controlmotor\\last.controlmotor\\Core\\Inc",
+                "d:\\IDE\\STM32CubeMX\\Files\\Controlmotor\\last.controlmotor\\Drivers\\STM32F4xx_HAL_Driver\\Inc",
+                "d:\\IDE\\STM32CubeMX\\Files\\Controlmotor\\last.controlmotor\\Drivers\\STM32F4xx_HAL_Driver\\Inc\\Legacy",
+                "d:\\IDE\\STM32CubeMX\\Files\\Controlmotor\\last.controlmotor\\Drivers\\CMSIS\\Device\\ST\\STM32F4xx\\Include",
+                "d:\\IDE\\STM32CubeMX\\Files\\Controlmotor\\last.controlmotor\\Drivers\\CMSIS\\Include",
+                "d:\\IDE\\STM32CubeMX\\Files\\Controlmotor\\last.controlmotor\\Drivers\\OLED",
                 "D:\\keil\\ARM\\ARMCLANG\\include",
                 "D:\\keil\\ARM\\ARMCLANG\\include\\arm_linux",
                 "D:\\keil\\ARM\\ARMCLANG\\include\\arm_linux_compat",
                 "D:\\keil\\ARM\\ARMCLANG\\include\\libcxx",
-                "e:\\ExKeilFile\\MotorControl\\MDK-ARM",
-                "e:\\ExKeilFile\\MotorControl\\Core\\Src",
-                "e:\\ExKeilFile\\MotorControl\\Drivers\\STM32F4xx_HAL_Driver\\Src"
+                "d:\\IDE\\STM32CubeMX\\Files\\Controlmotor\\last.controlmotor\\MDK-ARM",
+                "d:\\IDE\\STM32CubeMX\\Files\\Controlmotor\\last.controlmotor\\Core\\Src",
+                "d:\\IDE\\STM32CubeMX\\Files\\Controlmotor\\last.controlmotor\\Drivers\\STM32F4xx_HAL_Driver\\Src"
             ],
             "defines": [
                 "USE_HAL_DRIVER",

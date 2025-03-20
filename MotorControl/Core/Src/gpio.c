@@ -66,10 +66,16 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(bin1_GPIO_Port, bin1_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, BIN1_Pin|bin2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(BIN1_GPIO_Port, BIN1_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(BIN2_GPIO_Port, BIN2_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, BIN2_Pin|bin2_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : Key2_Pin Key3_Pin Key0_Pin */
+  GPIO_InitStruct.Pin = Key2_Pin|Key3_Pin|Key0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : Direction_0_Pin Direction_1_Pin */
   GPIO_InitStruct.Pin = Direction_0_Pin|Direction_1_Pin;
@@ -131,8 +137,17 @@ void MX_GPIO_Init(void)
   HAL_GPIO_Init(Key1_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
   HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 1);
   HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI2_IRQn, 1, 2);
+  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 1, 3);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
 
 }
 

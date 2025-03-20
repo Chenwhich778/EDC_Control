@@ -60,10 +60,12 @@ uint32_t last_key_time = 0;
 
 extern uint8_t MPU6050_Init(I2C_HandleTypeDef *hi2c);
 extern void MPU6050_Read_All(I2C_HandleTypeDef *hi2c, MPU6050_t *Data);
-uint8_t sensor_status = 0; // 用于存储传感器状态的变量
-uint8_t prev_status = 0;   // 存储上一次的传感器状态
 char uart_buffer[50];      // UART发送缓冲区
 MPU6050_t MPU6050;         // MPU6050数据结构
+uint8_t mode;
+double origine_angle=0.0f;
+double target_angle=-50.0f;
+double angle=0.0f;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -82,6 +84,37 @@ void Send_MultiData_FireWater(float speed_rpm, float pidsetpoint,  float speed_r
     if (HAL_UART_Transmit(&huart1, (uint8_t*)buffer, length, 100) != HAL_OK) {
         Error_Handler();
     }
+}
+double CalculateYaw_Filtered(double gyro_z, double dt)
+{
+    // 静态变量保存yaw和bias
+    static double yaw = 0.0;
+    static double bias = 0.0;
+    
+    // 如果测量值很小，认为设备静止，可以更新零偏
+    const double threshold = 0.1; // 阈值，根据实际情况调整
+    const double alpha = 0.99;    // 越接近1，更新越慢
+    
+    if(fabs(gyro_z) < threshold)
+    {
+        bias = alpha * bias + (1.0 - alpha) * gyro_z;
+    }
+    
+    // 用减去偏置后的角速度积分计算yaw
+    double corrected_rate = gyro_z - bias;
+    yaw += corrected_rate * dt;
+    
+    // 限制yaw范围在 [-180, 180]
+    if (yaw > 180.0)
+    {
+        yaw -= 360.0;
+    }
+    else if (yaw < -180.0)
+    {
+        yaw += 360.0;
+    }
+    
+    return yaw;
 }
 typedef struct {
     float Kp;           // 比例系数
@@ -186,7 +219,7 @@ float PIDC_Compute(PID_Correct *pid, float rpm[],float pre_rpm[]) {
 	  if((rpm[0]+pre_rpm[0]-2*target_rpm[0])<-2.0f||(rpm[0]+pre_rpm[0]-2*target_rpm[0])>2.0f)
 			 return 0;
     //计算correct
-		straight_error+=(rpm[0]+pre_rpm[0])/2*pid->Ts-(rpm[1]+pre_rpm[1])/2*pid->Ts;
+		straight_error=(rpm[0]+pre_rpm[0])/2*pid->Ts-(rpm[1]+pre_rpm[1])/2*pid->Ts;
     
     // 比例项
     float P = pid->Kp * straight_error;
@@ -248,7 +281,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		
 		rpm[0]=(rpm[0]>=0)?rpm[0]:-rpm[0];
 		rpm[1]=(rpm[1]>=0)?rpm[1]:-rpm[1];
-		//读取循迹模块
+	  //读取灰度传感器
+		for(int i=0;i<7;i++)
+		  Pre_Direction[i]=Direction[i];
 		if(HAL_GPIO_ReadPin(Direction_6_GPIO_Port,Direction_6_Pin)==GPIO_PIN_SET)//D_6
 			Direction[6]=1;
 		else
@@ -277,32 +312,75 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			Direction[0]=1;
 		else
 			Direction[0]=0;
-		//correct计算
-		if(Direction[0]==1||Direction[6]==1){
-			if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0)
-				straight_error=0;
-		  correct[0]=0.8*rpm[0]*Direction[0]-0.8*rpm[0]*Direction[6];
-			correct[1]=0.8*rpm[1]*Direction[0]-0.8*rpm[1]*Direction[6];
+		//计算当前角度
+		angle=CalculateYaw_Filtered(MPU6050.Gz, 0.1);
+		//mode1
+		switch (mode){
+			case 0:{
+				
+			}
+			case 1:{
+				if(Direction[0]==1||Direction[6]==1){
+			    if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0)
+				    straight_error=0;
+		      correct[0]=0.8*rpm[0]*Direction[0]-0.8*rpm[0]*Direction[6];
+			    correct[1]=0.8*rpm[1]*Direction[0]-0.8*rpm[1]*Direction[6];
+		    }
+		    else if(Direction[1]==1||Direction[5]==1){
+			    if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0)
+				    straight_error=0;
+		      correct[0]=0.5*rpm[0]*Direction[1]-0.5*rpm[0]*Direction[5];
+			    correct[1]=0.5*rpm[1]*Direction[1]-0.5*rpm[1]*Direction[5];
+		      }
+		    else if(Direction[2]==1||Direction[4]==1){
+			    if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0)
+				    straight_error=0;
+		      correct[0]=0.25*rpm[0]*Direction[2]-0.25*rpm[0]*Direction[4];
+			    correct[1]=0.25*rpm[1]*Direction[2]-0.25*rpm[1]*Direction[4];
+		    }
+		    else{                                       //直行纠正
+			    straight_error+=Pre_Direction[0]*Kcl[0]-Pre_Direction[6]*Kcr[0]+Pre_Direction[1]*Kcl[1]-Pre_Direction[5]*Kcr[1]+Pre_Direction[2]*Kcl[2]*-Pre_Direction[4]*Kcr[2];
+			    correct[0]=PIDC_Compute(&correctl_pid,rpm,pre_rpm);
+			    correct[1]=PIDC_Compute(&correctr_pid,rpm,pre_rpm);
+		    }
+		  }
+			case 3:{
+				
+			}
+			case 4:{
+			  if(Direction[0]==1||Direction[6]==1){
+		      correct[0]=0.8*rpm[0]*Direction[0]-0.8*rpm[0]*Direction[6];
+			    correct[1]=0.8*rpm[1]*Direction[0]-0.8*rpm[1]*Direction[6];
+		    }
+		    else if(Direction[1]==1||Direction[5]==1){
+		      correct[0]=0.5*rpm[0]*Direction[1]-0.5*rpm[0]*Direction[5];
+			    correct[1]=0.5*rpm[1]*Direction[1]-0.5*rpm[1]*Direction[5];
+		      }
+		    else if(Direction[2]==1||Direction[4]==1){
+		      correct[0]=0.25*rpm[0]*Direction[2]-0.25*rpm[0]*Direction[4];
+			    correct[1]=0.25*rpm[1]*Direction[2]-0.25*rpm[1]*Direction[4];
+		    }
+		    else{
+					if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==1){
+						origine_angle=angle;
+						target_angle=-target_angle;
+					}
+					double angle_error=angle-origine_angle;
+					if(angle_error>target_angle){
+						correct[0]=-50;
+						correct[1]=50;
+					}
+					else if(angle_error<target_angle){
+						correct[0]=50;
+						correct[1]=-50;
+					}
+					else {
+						correct[0]=0;
+						correct[1]=0;
+					}
+		    }
+			}
 		}
-		else if(Direction[1]==1||Direction[5]==1){
-			if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0)
-				straight_error=0;
-		  correct[0]=0.5*rpm[0]*Direction[1]-0.5*rpm[0]*Direction[5];
-			correct[1]=0.5*rpm[1]*Direction[1]-0.5*rpm[1]*Direction[5];
-		}
-		else if(Direction[2]==1||Direction[4]==1){
-			if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0)
-				straight_error=0;
-		  correct[0]=0.25*rpm[0]*Direction[2]-0.25*rpm[0]*Direction[4];
-			correct[1]=0.25*rpm[1]*Direction[2]-0.25*rpm[1]*Direction[4];
-		}
-		else{                                       //直行纠正
-			straight_error+=Pre_Direction[0]*Kcl[0]-Pre_Direction[6]*Kcr[0]+Pre_Direction[1]*Kcl[1]-Pre_Direction[5]*Kcr[1]+Pre_Direction[2]*Kcl[2]*-Pre_Direction[4]*Kcr[2];
-			correct[0]=PIDC_Compute(&correctl_pid,rpm,pre_rpm);
-			correct[1]=PIDC_Compute(&correctr_pid,rpm,pre_rpm);
-		}
-		for(int i=0;i<7;i++)
-		  Pre_Direction[i]=Direction[i];
 		// PID计算
     float pwm_left = PID_Compute(&left_motor_pid, target_rpm[0]-correct[0], rpm[0]);
 		float pwm_right = PID_Compute(&right_motor_pid, target_rpm[1]+correct[1], rpm[1]);
@@ -315,7 +393,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		OLED_ShowFloatNum(43,8,duty[1],2,4,OLED_6X8);
 		pre_rpm[0]=rpm[0];
 		pre_rpm[1]=rpm[1];
-		OLED_ShowFloatNum(67,40,speed_time,1,1,OLED_6X8);
+		OLED_ShowFloatNum(43,40,angle,3,2,OLED_6X8);
 		OLED_Update();
 		//Send_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);
   }
@@ -329,49 +407,22 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 if(HAL_GetTick() - last_key_time > 200) { // 200ms防抖
     last_key_time = HAL_GetTick();
-	if(GPIO_Pin==Key1_Pin){
-		HAL_GPIO_TogglePin(BIN2_GPIO_Port,BIN2_Pin);
-		HAL_GPIO_TogglePin(BIN1_GPIO_Port,BIN1_Pin);
-		HAL_GPIO_TogglePin(bin1_GPIO_Port,bin1_Pin);
-		HAL_GPIO_TogglePin(bin2_GPIO_Port,bin2_Pin);
-		//left_motor_pid.Kp=(HAL_GPIO_ReadPin(BIN1_GPIO_Port,BIN1_Pin)==GPIO_PIN_SET)? 0.069 : 0.072f;
-		//right_motor_pid.Kp=(HAL_GPIO_ReadPin(BIN1_GPIO_Port,bin2_Pin)==GPIO_PIN_SET)? 0.295f : 0.3f;
-		speed_time=0.0f;
-	}
+	correct[0]=0;
+	correct[1]=0;
+	straight_error=0;
+	pre_straight_error=0;
+	if(GPIO_Pin==Key0_Pin)
+		mode=0;
+	else if(GPIO_Pin==Key1_Pin)
+		mode=1;
+	else if(GPIO_Pin==Key2_Pin)
+		mode=2;
+	else if(GPIO_Pin==Key3_Pin)
+		mode=3;
  }
 }
 
-double CalculateYaw_Filtered(double gyro_z, double dt)
-{
-    // 静态变量保存yaw和bias
-    static double yaw = 0.0;
-    static double bias = 0.0;
-    
-    // 如果测量值很小，认为设备静止，可以更新零偏
-    const double threshold = 0.1; // 阈值，根据实际情况调整
-    const double alpha = 0.99;    // 越接近1，更新越慢
-    
-    if(fabs(gyro_z) < threshold)
-    {
-        bias = alpha * bias + (1.0 - alpha) * gyro_z;
-    }
-    
-    // 用减去偏置后的角速度积分计算yaw
-    double corrected_rate = gyro_z - bias;
-    yaw += corrected_rate * dt;
-    
-    // 限制yaw范围在 [-180, 180]
-    if (yaw > 180.0)
-    {
-        yaw -= 360.0;
-    }
-    else if (yaw < -180.0)
-    {
-        yaw += 360.0;
-    }
-    
-    return yaw;
-}
+
 /* USER CODE END 0 */
 
 /**
@@ -411,8 +462,6 @@ int main(void)
   MX_TIM9_Init();
   MX_TIM2_Init();
   MX_I2C1_Init();
-	
-	MPU6050_Init(&hi2c1); // 初始化MPU6050
   /* USER CODE BEGIN 2 */
 	// PID参数初始化（需根据实际系统调整）
   /*if(HAL_GPIO_ReadPin(BIN1_GPIO_Port,BIN1_Pin)==GPIO_PIN_SET){
@@ -442,7 +491,7 @@ int main(void)
 	OLED_ShowFloatNum(31,16,rpm[0],3,1,OLED_6X8);
 	OLED_ShowFloatNum(31,24,rpm[1],3,1,OLED_6X8);
 	OLED_ShowString(1,32,"MAX:350rpm",OLED_6X8);
-	OLED_ShowString(1,40,"Speed Time:",OLED_6X8);
+	OLED_ShowString(1,40,"Angle:",OLED_6X8);
 	OLED_Update();
 	
 	//USART
@@ -453,8 +502,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		// 清除之前的状态
-    sensor_status = 0;
     
     // 读取MPU6050数据
     MPU6050_Read_All(&hi2c1, &MPU6050);
@@ -464,38 +511,13 @@ int main(void)
             MPU6050.Ax, MPU6050.Ay, MPU6050.Az, 
             MPU6050.Gx, MPU6050.Gy, MPU6050.Gz);
     HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
-    CalculateYaw_Filtered(MPU6050.Gz, 0.01);
-    sprintf(uart_buffer, "Yaw: %.2f\r\n", CalculateYaw_Filtered(MPU6050.Gz, 0.01));
+    
+    sprintf(uart_buffer, "Yaw: %.2f\r\n", angle);
     HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
-    // 如果有传感器状态变化且有传感器被激活，发送数据
-    // if((sensor_status != prev_status) && (sensor_status > 0))
-    // {
-    //   // 格式化消息
-    //   sprintf(uart_buffer, "Sensors: %c%c%c%c%c%c%c\r\n", 
-    //           (sensor_status & 0x01) ? '1' : '0',
-    //           (sensor_status & 0x02) ? '1' : '0',
-    //           (sensor_status & 0x04) ? '1' : '0',
-    //           (sensor_status & 0x08) ? '1' : '0',
-    //           (sensor_status & 0x10) ? '1' : '0',
-    //           (sensor_status & 0x20) ? '1' : '0',
-    //           (sensor_status & 0x40) ? '1' : '0');
-      
-    //   // 通过UART发送数据
-    //   HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
-    // }
     
-    // 更新LED状态 - L1传感器被激活时点亮LED
-    /*if(sensor_status & 0x01){
-      HAL_GPIO_WritePin(GPIOF, LED_Pin, GPIO_PIN_SET);
-    } else {
-      HAL_GPIO_WritePin(GPIOF, LED_Pin, GPIO_PIN_RESET);
-    }*/
-    
-    // 保存当前状态
-    prev_status = sensor_status;
     
     // 短暂延时以减少串口发送频率
-    HAL_Delay(20);
+    HAL_Delay(100);
     
 		/*__HAL_TIM_SET_COMPARE(&htim11, TIM_CHANNEL_1, 100);
 		HAL_Delay(10);
