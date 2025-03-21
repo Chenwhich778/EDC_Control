@@ -36,7 +36,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-//AABBCCDD测试用 陈which小女友乐憬一
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -58,23 +58,23 @@ int32_t pre_total[2];
 float rpm[2] = {0.0f};
 float pre_rpm[2]={0.0f};
 uint32_t last_key_time = 0;
+double g_yaw=0.0f;
 
 extern uint8_t MPU6050_Init(I2C_HandleTypeDef *hi2c);
 extern void MPU6050_Read_All(I2C_HandleTypeDef *hi2c, MPU6050_t *Data);
 char uart_buffer[50];      // UART发送缓冲区
 MPU6050_t MPU6050;         // MPU6050数据结构
-uint8_t mode;
+uint8_t mode=0;
 double origine_angle=0.0f;
 double target_angle=-50.0f;
 double angle=0.0f;
+int8_t circle=0;
 
 volatile char rx_buffer[RX_BUFFER_SIZE];
 volatile uint8_t rx_index = 0;
 volatile uint8_t rx_ready = 0;
 char rx_char;
 
-double g_yaw = 0.0;
-double g_bias = 0.0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -94,6 +94,8 @@ void Send_MultiData_FireWater(float speed_rpm, float pidsetpoint,  float speed_r
         Error_Handler();
     }
 }
+
+
 void CalculateYaw_Filtered(double gyro_z, double dt)
 {
     // 静态变量保存yaw和bias
@@ -102,7 +104,6 @@ void CalculateYaw_Filtered(double gyro_z, double dt)
     
     // 如果测量值很小，认为设备静止，可以更新零偏
     const double threshold = 2.5; // 阈值，根据实际情况调整
-    
     if(fabs(gyro_z) < threshold)
     {
         bias = gyro_z;
@@ -111,19 +112,18 @@ void CalculateYaw_Filtered(double gyro_z, double dt)
     // 用减去偏置后的角速度积分计算yaw
     double corrected_rate = gyro_z - bias;
     yaw += corrected_rate * dt;
-
-    g_yaw = yaw*11;
-    g_bias = bias;
+    g_yaw=yaw*11;
     // 限制yaw范围在 [-180, 180]
     if (g_yaw > 180.0)
     {
-      g_yaw -= 360.0;
+        g_yaw -= 360.0;
     }
-    else if (yaw < -180.0)
+    else if (g_yaw < -180.0)
     {
-      g_yaw += 360.0;
+        g_yaw += 360.0;
     }
-    return ;
+    
+    return;
 }
 typedef struct {
     float Kp;           // 比例系数
@@ -321,41 +321,96 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			Direction[0]=1;
 		else
 			Direction[0]=0;
-
-		//mode1
+	
+		//mode
 		switch (mode){
-			case 0:{
-				
+			case 0:{//直行后停止
+				if((Direction[0]|Direction[1]|Direction[2]|Direction[3]|Direction[4]|Direction[5]|Direction[6]==1)&&(Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6]==0)){
+				  correct[0]=target_rpm[0];
+				  correct[1]=-target_rpm[1];
+			  }
+				else{
+					straight_error+=Pre_Direction[0]*Kcl[0]-Pre_Direction[6]*Kcr[0]+Pre_Direction[1]*Kcl[1]-Pre_Direction[5]*Kcr[1]+Pre_Direction[2]*Kcl[2]*-Pre_Direction[4]*Kcr[2];
+			    correct[0]=PIDC_Compute(&correctl_pid,rpm,pre_rpm);
+			    correct[1]=PIDC_Compute(&correctr_pid,rpm,pre_rpm);
+				}
 			}
-			case 1:{
+			case 1:{//正绕一圈
 				if(Direction[0]==1||Direction[6]==1){
-			    if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0)
+			    if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0){
 				    straight_error=0;
+						circle++;
+					}
 		      correct[0]=0.8*rpm[0]*Direction[0]-0.8*rpm[0]*Direction[6];
 			    correct[1]=0.8*rpm[1]*Direction[0]-0.8*rpm[1]*Direction[6];
 		    }
 		    else if(Direction[1]==1||Direction[5]==1){
-			    if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0)
+			    if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0){
 				    straight_error=0;
+						circle++;
+					}
 		      correct[0]=0.5*rpm[0]*Direction[1]-0.5*rpm[0]*Direction[5];
 			    correct[1]=0.5*rpm[1]*Direction[1]-0.5*rpm[1]*Direction[5];
 		      }
 		    else if(Direction[2]==1||Direction[4]==1){
-			    if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0)
+			    if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==0){
 				    straight_error=0;
+						circle++;
+					}
 		      correct[0]=0.25*rpm[0]*Direction[2]-0.25*rpm[0]*Direction[4];
 			    correct[1]=0.25*rpm[1]*Direction[2]-0.25*rpm[1]*Direction[4];
 		    }
+				else if(circle==2){
+				  correct[0]=target_rpm[0];
+					correct[1]=-target_rpm[1];
+				}
 		    else{                                       //直行纠正
 			    straight_error+=Pre_Direction[0]*Kcl[0]-Pre_Direction[6]*Kcr[0]+Pre_Direction[1]*Kcl[1]-Pre_Direction[5]*Kcr[1]+Pre_Direction[2]*Kcl[2]*-Pre_Direction[4]*Kcr[2];
 			    correct[0]=PIDC_Compute(&correctl_pid,rpm,pre_rpm);
 			    correct[1]=PIDC_Compute(&correctr_pid,rpm,pre_rpm);
 		    }
 		  }
-			case 3:{
-				
+			case 2:{    //‘8’字一圈
+				if(Direction[0]==1||Direction[6]==1){
+		      correct[0]=0.8*rpm[0]*Direction[0]-0.8*rpm[0]*Direction[6];
+			    correct[1]=0.8*rpm[1]*Direction[0]-0.8*rpm[1]*Direction[6];
+		    }
+		    else if(Direction[1]==1||Direction[5]==1){
+		      correct[0]=0.5*rpm[0]*Direction[1]-0.5*rpm[0]*Direction[5];
+			    correct[1]=0.5*rpm[1]*Direction[1]-0.5*rpm[1]*Direction[5];
+		      }
+		    else if(Direction[2]==1||Direction[4]==1){
+		      correct[0]=0.25*rpm[0]*Direction[2]-0.25*rpm[0]*Direction[4];
+			    correct[1]=0.25*rpm[1]*Direction[2]-0.25*rpm[1]*Direction[4];
+		    }
+		    else{
+					if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==1){
+						origine_angle=angle;
+						target_angle=-target_angle;
+						circle++;
+					}
+					if(circle==2){
+				    correct[0]=target_rpm[0];
+						correct[1]=-target_rpm[1];
+					}
+					else{
+					  double angle_error=angle-origine_angle;
+					  if(angle_error>target_angle){
+						  correct[0]=-50;
+						  correct[1]=-50;
+					  }
+					  else if(angle_error<target_angle){
+						  correct[0]=50;
+						  correct[1]=50;
+					  }
+					  else {
+						  correct[0]=0;
+						  correct[1]=0;
+					  }
+					}
+		    }
 			}
-			case 4:{
+			case 3:{    //‘8’字四圈
 			  if(Direction[0]==1||Direction[6]==1){
 		      correct[0]=0.8*rpm[0]*Direction[0]-0.8*rpm[0]*Direction[6];
 			    correct[1]=0.8*rpm[1]*Direction[0]-0.8*rpm[1]*Direction[6];
@@ -372,19 +427,26 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 					if((Pre_Direction[0]|Pre_Direction[1]|Pre_Direction[2]|Pre_Direction[3]|Pre_Direction[4]|Pre_Direction[5]|Pre_Direction[6])==1){
 						origine_angle=angle;
 						target_angle=-target_angle;
+						circle++;
 					}
-					double angle_error=angle-origine_angle;
-					if(angle_error>target_angle){
-						correct[0]=-50;
-						correct[1]=50;
+					if(circle==8){
+						correct[0]=target_rpm[0];
+						correct[1]=-target_rpm[1];
 					}
-					else if(angle_error<target_angle){
-						correct[0]=50;
-						correct[1]=-50;
-					}
-					else {
-						correct[0]=0;
-						correct[1]=0;
+					else{
+						double angle_error=angle-origine_angle;
+					  if(angle_error>target_angle){
+						  correct[0]=-50;
+						  correct[1]=-50;
+					  }
+					  else if(angle_error<target_angle){
+						  correct[0]=50;
+						  correct[1]=50;
+					  }
+					  else {
+						  correct[0]=0;
+						  correct[1]=0;
+					  }
 					}
 		    }
 			}
@@ -401,9 +463,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		OLED_ShowFloatNum(43,8,duty[1],2,4,OLED_6X8);
 		pre_rpm[0]=rpm[0];
 		pre_rpm[1]=rpm[1];
-		OLED_ShowFloatNum(43,40,angle,3,2,OLED_6X8);
+		
 		OLED_Update();
-		//_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);
+		//Send_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);
   }
 	else if(htim->Instance==TIM3){
 		current_total[0] +=(TIM3->CR1 & TIM_CR1_DIR) ? -65536 :65536;
@@ -419,62 +481,67 @@ if(HAL_GetTick() - last_key_time > 200) { // 200ms防抖
 	correct[1]=0;
 	straight_error=0;
 	pre_straight_error=0;
-	if(GPIO_Pin==Key0_Pin)
+	if(GPIO_Pin==Key0_Pin){
 		mode=0;
-	else if(GPIO_Pin==Key1_Pin)
+		circle=0;
+	}
+	else if(GPIO_Pin==Key1_Pin){
 		mode=1;
-	else if(GPIO_Pin==Key2_Pin)
+		circle=0;
+	}
+	else if(GPIO_Pin==Key2_Pin){
 		mode=2;
-	else if(GPIO_Pin==Key3_Pin)
+		circle=0;
+	}
+	else if(GPIO_Pin==Key3_Pin){
 		mode=3;
+		circle=0;
+	}
  }
 }
-
 // 解析数据并更新PID参数
-void Parse_Data() {
-  char *token;
-  float values[3];
-  uint8_t count = 0;
+/*void Parse_Data() {
+    char *token;
+    float values[3];
+    uint8_t count = 0;
 
-  token = strtok((char *)rx_buffer, ",");
-  while (token != NULL && count < 3) {
-      values[count++] = atof(token);
-      token = strtok(NULL, ",");
-  }
+    token = strtok((char *)rx_buffer, ",");
+    while (token != NULL && count < 3) {
+        values[count++] = atof(token);
+        token = strtok(NULL, ",");
+    }
 
-  if (count == 3) { // 确保接收到三个值
-    left_motor_pid.Kp = values[0];
-    left_motor_pid.Ki = values[1];
-    left_motor_pid.Kd = values[2];
-  }
-  
-}
+    if (count == 3) { // 确保接收到三个值
+        right_motor_pid.Kp = values[0];
+        right_motor_pid.Ki = values[1];
+        right_motor_pid.Kd = values[2];
+    }
+	}
+*/
 // USART接收中断回调函数
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-  if (huart->Instance == USART1) { // 确保是目标USART
-      // 检测结束符（回车或换行）
-      if (rx_char == '\r' || rx_char == '\n') {
-          if (rx_index > 0) { // 非空数据
-              rx_buffer[rx_index] = '\0'; // 终止字符串
-              rx_ready = 1; // 设置标志位
-              rx_index = 0; // 重置索引
-          }
-      } else {
-          // 将字符存入缓冲区，防止溢出
-          if (rx_index < RX_BUFFER_SIZE - 1) {
-              rx_buffer[rx_index++] = rx_char;
-          } else {
-              // 缓冲区满，重置索引（可选：错误处理）
-              rx_index = 0;
-          }
-      }
-      
-       HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);
-       
-  }
- 
-}
-
+/*void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART1) { // 确保是目标USART
+        // 检测结束符（回车或换行）
+        if (rx_char == '\r' || rx_char == '\n') {
+            if (rx_index > 0) { // 非空数据
+                rx_buffer[rx_index] = '\0'; // 终止字符串
+                rx_ready = 1; // 设置标志位
+                rx_index = 0; // 重置索引
+            }
+        } else {
+            // 将字符存入缓冲区，防止溢出
+            if (rx_index < RX_BUFFER_SIZE - 1) {
+                rx_buffer[rx_index++] = rx_char;
+            } else {
+                // 缓冲区满，重置索引（可选：错误处理）
+                rx_index = 0;
+            }
+        }
+        // 重新启动接收中断
+         HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);
+    }
+}*/
+	
 
 /* USER CODE END 0 */
 
@@ -548,7 +615,7 @@ int main(void)
 	OLED_Update();
 	
 	//USART
-  HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);  // 启动 USART 接收中断
+  HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);  //启动 USART 接收中断
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -556,11 +623,13 @@ int main(void)
   while (1)
   {
     
-    //读取MPU6050数据
+    // 读取MPU6050数据
     MPU6050_Read_All(&hi2c1, &MPU6050);
-		//计算当前角度
+	  //计算当前角度
 		CalculateYaw_Filtered(MPU6050.Gz, 0.01);
-    angle=g_yaw;
+		angle=g_yaw;
+		OLED_ShowFloatNum(43,40,angle,3,2,OLED_6X8);
+		OLED_Update();
     // 格式化MPU6050数据并发送
     sprintf(uart_buffer, "Accel: %.2f, %.2f, %.2f; Gyro: %.2f, %.2f, %.2f\r\n", 
             MPU6050.Ax, MPU6050.Ay, MPU6050.Az, 
@@ -581,18 +650,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if (rx_ready) {
-      Parse_Data();
-      rx_ready = 0;
-    }
-
-    Send_MultiData_FireWater(rpm[0],target_rpm[0],left_motor_pid.Kp,left_motor_pid.Ki);
-
-    HAL_Delay(100);
-
-
   }
-  
   /* USER CODE END 3 */
 }
 
