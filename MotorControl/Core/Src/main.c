@@ -74,7 +74,7 @@ volatile char rx_buffer[RX_BUFFER_SIZE];
 volatile uint8_t rx_index = 0;
 volatile uint8_t rx_ready = 0;
 char rx_char;
-
+uint8_t stop_flag=0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -341,8 +341,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     }
     if (switch_count>=1) {
         // 检测到切换标志，停止
-        correct[0]=target_rpm[0];
-			  correct[1]=-target_rpm[1];
+        stop_flag=1;
 			  break;
     }
     break;
@@ -358,8 +357,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
     if (switch_count >= 4) {
         // 第四个切换标志，停止
-        correct[0]=target_rpm[0];
-			  correct[1]=-target_rpm[1];
+        stop_flag=1;
 			  break;
     }
 		else {
@@ -403,8 +401,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
     if (switch_count >= 4) {
         // 第四个切换标志，停止
-        correct[0]=target_rpm[0];
-			  correct[1]=-target_rpm[1];
+        stop_flag=1;
 			  break;
     } else if(Direction[0]==1||Direction[6]==1){
 		      correct[0]=0.8*rpm[0]*Direction[0]-0.8*rpm[0]*Direction[6];
@@ -451,8 +448,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
     if (switch_count >= 16) {
         // 第 16 个切换标志，停止
-        correct[0]=target_rpm[0];
-			  correct[1]=-target_rpm[1];
+        stop_flag=1;
 			  break;
     } else if(Direction[0]==1||Direction[6]==1){
 		      correct[0]=0.8*rpm[0]*Direction[0]-0.8*rpm[0]*Direction[6];
@@ -491,8 +487,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 				break;
 	}
 		// PID计算
-    float pwm_left = PID_Compute(&left_motor_pid, target_rpm[0]-correct[0], rpm[0]);
-		float pwm_right = PID_Compute(&right_motor_pid, target_rpm[1]+correct[1], rpm[1]);
+	  float pwm_left;
+	  float pwm_right;
+	  if(stop_flag==0){
+      pwm_left = PID_Compute(&left_motor_pid, target_rpm[0]-correct[0], rpm[0]);
+		  pwm_right = PID_Compute(&right_motor_pid, target_rpm[1]+correct[1], rpm[1]);
+		}
+		else{
+			pwm_left=0;
+			pwm_right=0;
+		}
 		// 更新PWM输出
     __HAL_TIM_SET_COMPARE(&htim11, TIM_CHANNEL_1, (uint32_t)pwm_left);
 		__HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, (uint32_t)pwm_right);
@@ -523,15 +527,19 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         if (GPIO_Pin == Key0_Pin) {
             mode = 0;
             switch_count = 0;
+					  stop_flag=0;
         } else if (GPIO_Pin == Key1_Pin) {
             mode = 1;
             switch_count = 0;
+					   stop_flag=0;
         } else if (GPIO_Pin == Key2_Pin) {
             mode = 2;
             switch_count = 0;
+					  stop_flag=0;
         } else if (GPIO_Pin == Key3_Pin) {
             mode = 3;
             switch_count = 0;
+					  stop_flag=0;
         }
     }
 }
