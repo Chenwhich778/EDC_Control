@@ -149,6 +149,7 @@ typedef struct {
 /* 全局变量 --------------------------------------------------------*/
 PID_Controller left_motor_pid;     // PID控制器实例
 PID_Controller right_motor_pid;     // PID控制器实例
+PID_Controller angle_pid;
 PID_Correct correctl_pid;    //修正实例
 PID_Correct correctr_pid;    //修正实例
 float target_rpm[2];    // 目标转速 0为左轮B，1为右轮A
@@ -421,18 +422,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 						target_angle=-target_angle;
 					}
 					double angle_error=angle-origine_angle;
-					  if(angle_error>target_angle){
-						  correct[0]=-50;
-						  correct[1]=-50;
-					  }
-					  else if(angle_error<target_angle){
-						  correct[0]=50;
-						  correct[1]=50;
-					  }
-					  else {
-						  correct[0]=0;
-						  correct[1]=0;
-					  }
+					correct[0]=PID_Compute(&angle_pid,target_angle,angle_error);
+					correct[1]=-correct[0];
 		    }
     break;
 		
@@ -468,18 +459,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 						target_angle=-target_angle;
 					}
 						double angle_error=angle-origine_angle;
-					  if(angle_error>target_angle){
-						  correct[0]=-50;
-						  correct[1]=-50;
-					  }
-					  else if(angle_error<target_angle){
-						  correct[0]=50;
-						  correct[1]=50;
-					  }
-					  else {
-						  correct[0]=0;
-						  correct[1]=0;
-					  }
+					  correct[0]=PID_Compute(&angle_pid,target_angle,angle_error);
+					  correct[1]=-correct[0];
 			}
     break;
        }
@@ -517,7 +498,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	}
 }
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    if (HAL_GetTick() - last_key_time > 200) { // 200ms防抖
+    if (HAL_GetTick() - last_key_time > 20) { // 200ms防抖
         last_key_time = HAL_GetTick();
         correct[0] = 0;
         correct[1] = 0;
@@ -531,7 +512,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         } else if (GPIO_Pin == Key1_Pin) {
             mode = 1;
             switch_count = 0;
-					   stop_flag=0;
+					  stop_flag=0;
         } else if (GPIO_Pin == Key2_Pin) {
             mode = 2;
             switch_count = 0;
@@ -627,6 +608,8 @@ int main(void)
   MX_TIM2_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+	MPU6050_Init(&hi2c1);
+	
 	// PID参数初始化（需根据实际系统调整）
   /*if(HAL_GPIO_ReadPin(BIN1_GPIO_Port,BIN1_Pin)==GPIO_PIN_SET){
     TIM2->CNT=65535;
@@ -635,6 +618,7 @@ int main(void)
 	target_rpm[1]=100.0f;
   PID_Init(&left_motor_pid, 6.0f, 0.6f, 0.1f, 0.1f); //Kp=0.6,Ki=0.5,Kd=0.1
 	PID_Init(&right_motor_pid, 6.0f, 0.6f, 0.1f, 0.1f); // Kp=4.5,Ki=3.0;Kd=0.0
+	PID_Init(&angle_pid,10.0f,1.0f,0.1f,0.1f);
 	PIDC_Init(&correctl_pid, 40.0f,20.0f,2.0f,0.1f);
 	PIDC_Init(&correctr_pid, 40.0f,20.0f,2.0f,0.1f);
 	Kcl_init(400.0f,200.0f,100.0f);
@@ -644,7 +628,6 @@ int main(void)
 	HAL_TIM_Base_Start_IT(&htim1);
 	HAL_TIM_PWM_Start(&htim11,TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_2);
-	MPU6050_Init(&hi2c1);
 	//OLED
 	OLED_Init();
 	OLED_ShowString(1,0,"LDuty:",OLED_6X8);
