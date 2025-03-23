@@ -65,14 +65,20 @@ char uart_buffer[50];      // UART发送缓冲区
 MPU6050_t MPU6050;         // MPU6050数据结构
 uint8_t mode=0;
 double origine_angle=0.0f;
-double target_angle=-32.0f;
+double target_angle=0.0f;
 double angle=0.0f;
-
+double pre_angle=0.0f;
 volatile char rx_buffer[RX_BUFFER_SIZE];
 volatile uint8_t rx_index = 0;
 volatile uint8_t rx_ready = 0;
 char rx_char;
 uint8_t stop_flag=0;
+double x=0.0;
+double y=0.0;
+const float SAMPLE_TIME = 0.01f;      // 定时中断周期（秒
+double wheel_radius=2.5;             //单位厘米
+double ground_x=50.0;
+double ground_y=100.0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -282,6 +288,33 @@ float PIDC_Compute(PID_Correct *pid, float rpm[],float pre_rpm[]) {
     
     return output;
 }
+
+   //计算小车x轴和y轴位移
+
+void Distance_x_y(double x,double y,double angle,double pre_angle){
+	double average_angle=(angle+pre_angle)/2;
+	if(average_angle<0)
+		average_angle=-average_angle;
+	double delt_angle=(pre_angle>angle)?pre_angle-angle:angle-pre_angle;
+	double average_rpm_0=(rpm[0]+pre_rpm[0])/2;
+	double average_rpm_1=(rpm[1]+pre_rpm[1])/2;
+	if(average_rpm_0<average_rpm_1){
+		
+	  x+=(sin(average_angle)*average_rpm_0+(average_rpm_1-average_rpm_0)*cos(delt_angle))*wheel_radius*2*3.1415926/60*SAMPLE_TIME;
+		
+		 y+=(cos(average_angle)*average_rpm_0+(average_rpm_1-average_rpm_0)*sin(delt_angle))*wheel_radius*2*3.1415926/60*SAMPLE_TIME;
+	}
+	else{
+		
+	  x+=(sin(average_angle)*average_rpm_1+(average_rpm_0-average_rpm_1)*cos(delt_angle))*wheel_radius*2*3.1415926/60*SAMPLE_TIME;
+		
+		y+=(cos(average_angle)*average_rpm_1+(average_rpm_0-average_rpm_1)*sin(delt_angle))*wheel_radius*2*3.1415926/60*SAMPLE_TIME;
+	}
+	
+	
+}
+
+
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
   if (htim->Instance == TIM1) {
     // 读取当前编码器计数值
@@ -305,8 +338,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     float PULSE_PER_REV[2];
 		PULSE_PER_REV[0]=1500;
 		PULSE_PER_REV[1]=1500;
-			 // 根据实际编码器参数修改
-    const float SAMPLE_TIME = 0.1f;      // 定时中断周期（秒）
+			 // 根据实际编码器参数修改）
     
     rpm[0] = (delta_left / PULSE_PER_REV[0]) * (60.0f / SAMPLE_TIME);
 		rpm[1] = (delta_right / PULSE_PER_REV[1]) * (60.0f / SAMPLE_TIME);
@@ -318,6 +350,28 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		
 		rpm[0]=(rpm[0]>=0)?rpm[0]:-rpm[0];
 		rpm[1]=(rpm[1]>=0)?rpm[1]:-rpm[1];
+		
+		//计算角度
+		// 读取MPU6050数据
+    MPU6050_Read_All(&hi2c1, &MPU6050);
+		pre_angle=angle;
+	  //计算当前角度
+		CalculateYaw_Filtered(MPU6050.Gz, 0.01);
+		OLED_ShowFloatNum(43,40,angle,3,2,OLED_6X8);
+		OLED_Update();
+    // 格式化MPU6050数据并发送
+    sprintf(uart_buffer, "Accel: %.2f, %.2f, %.2f; Gyro: %.2f, %.2f, %.2f\r\n", 
+            MPU6050.Ax, MPU6050.Ay, MPU6050.Az, 
+            MPU6050.Gx, MPU6050.Gy, MPU6050.Gz);
+    HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
+    
+    sprintf(uart_buffer, "Yaw: %.2f\r\n", angle);
+    HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
+    
+		//计算位移
+		Distance_x_y(x,y,angle,pre_angle);
+		//计算目标角度
+		target_angle=atan2(ground_x-x,ground_y-y);
 	  //读取灰度传感器
 		for(int i=0;i<7;i++)
 		  Pre_Direction[i]=Direction[i];
@@ -437,24 +491,29 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     } else if(Direction[0]==1||Direction[6]==1){
 		      correct[0]=1.0*rpm[0]*Direction[0]-1.0*rpm[0]*Direction[6];
 			    correct[1]=1.0*rpm[1]*Direction[0]-1.0*rpm[1]*Direction[6];
+			    x=y=0;
 		    }
 		    else if(Direction[1]==1||Direction[5]==1){
 		      correct[0]=0.7*rpm[0]*Direction[1]-0.7*rpm[0]*Direction[5];
 			    correct[1]=0.7*rpm[1]*Direction[1]-0.7*rpm[1]*Direction[5];
+					x=y=0;
 		      }
 		    else if(Direction[2]==1||Direction[4]==1){
 		      correct[0]=0.25*rpm[0]*Direction[2]-0.25*rpm[0]*Direction[4];
 			    correct[1]=0.25*rpm[1]*Direction[2]-0.25*rpm[1]*Direction[4];
+					x=y=0;
 		    }
 				else if(Direction[3]==1){
 					correct[0]=0;
 					correct[1]=0;
+					x=y=0;
 				}
 		    else{
-					if(previous_state==1&&((angle>=110.0&&angle<=180.0)||(angle>=-180.0&&angle<=-110.0))){
+					if(previous_state==1){
 						origine_angle=angle;
-						target_angle=-target_angle;
 					}
+					if(angle>-30.0&&angle<30.0)
+						target_angle=-target_angle;
 					double angle_error=angle-origine_angle;
 					if(angle_error>=180.0)
 						angle_error-=360.0;
@@ -481,26 +540,29 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     } else if(Direction[0]==1||Direction[6]==1){
 		      correct[0]=1.0*rpm[0]*Direction[0]-1.0*rpm[0]*Direction[6];
 			    correct[1]=1.0*rpm[1]*Direction[0]-1.0*rpm[1]*Direction[6];
+			    x=y=0;
 		    }
 		    else if(Direction[1]==1||Direction[5]==1){
 		      correct[0]=0.7*rpm[0]*Direction[1]-0.7*rpm[0]*Direction[5];
 			    correct[1]=0.7*rpm[1]*Direction[1]-0.7*rpm[1]*Direction[5];
+					x=y=0;
 		      }
 		    else if(Direction[2]==1||Direction[4]==1){
 		      correct[0]=0.25*rpm[0]*Direction[2]-0.25*rpm[0]*Direction[4];
 			    correct[1]=0.25*rpm[1]*Direction[2]-0.25*rpm[1]*Direction[4];
+					x=y=0;
 		    }
 				else if(Direction[3]==1){
 					correct[0]=0;
 					correct[1]=0;
+					x=y=0;
 				}
-				
-				
 		    else{
 					if(previous_state==1){
 						origine_angle=angle;
-						target_angle=-target_angle;
 					}
+					  if(angle>-30.0&&angle<30.0)
+						  target_angle=-target_angle;
 						double angle_error=angle-origine_angle;
 					  if(angle_error>=180.0)
 						  angle_error-=360.0;
@@ -539,7 +601,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		pre_rpm[1]=rpm[1];
 		OLED_ShowNum(37,48,mode,1,OLED_6X8);
 		OLED_ShowFloatNum(1,54,target_angle,2,1,OLED_6X8);
+		
+		
 		//Send_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);
+		
+		
   }
 	else if(htim->Instance==TIM3){
 		current_total[0] +=(TIM3->CR1 & TIM_CR1_DIR) ? -65536 :65536;
@@ -558,19 +624,15 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         switch_count = 0; // 重置计数器
         if (GPIO_Pin == Key0_Pin) {
             mode = 1;
-            switch_count = 0;
 					  stop_flag=0;
         } else if (GPIO_Pin == Key1_Pin) {
             mode = 2;
-            switch_count = 0;
 					  stop_flag=0;
         } else if (GPIO_Pin == Key2_Pin) {
             mode = 3;
-            switch_count = 0;
 					  stop_flag=0;
         } else if (GPIO_Pin == Key3_Pin) {
             mode = 4;
-            switch_count = 0;
 					  stop_flag=0;
         }
     }
@@ -667,11 +729,11 @@ int main(void)
   }*/
 	target_rpm[0]=100.0f;
 	target_rpm[1]=100.0f;
-  PID_Init(&left_motor_pid, 6.0f, 0.6f, 0.1f, 0.1f); //Kp=0.6,Ki=0.5,Kd=0.1
-	PID_Init(&right_motor_pid, 6.0f, 0.6f, 0.1f, 0.1f); // Kp=4.5,Ki=3.0;Kd=0.0
-	PID_Init(&angle_pid,2.0f,0.24f,0.1f,0.1f);
-	PIDC_Init(&correctl_pid, 40.0f,20.0f,2.0f,0.1f);
-	PIDC_Init(&correctr_pid, 40.0f,20.0f,2.0f,0.1f);
+  PID_Init(&left_motor_pid, 6.0f, 0.6f, 0.1f, 0.01f); //Kp=0.6,Ki=0.5,Kd=0.1
+	PID_Init(&right_motor_pid, 6.0f, 0.6f, 0.1f, 0.01f); // Kp=4.5,Ki=3.0;Kd=0.0
+	PID_Init(&angle_pid,2.0f,0.24f,0.1f,0.01f);
+	PIDC_Init(&correctl_pid, 40.0f,20.0f,2.0f,0.01f);
+	PIDC_Init(&correctr_pid, 40.0f,20.0f,2.0f,0.01f);
 	Kcl_init(400.0f,200.0f,100.0f);
 	Kcr_init(400.0f,200.0f,100.0f);
 	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
@@ -702,25 +764,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    
-    // 读取MPU6050数据
-    MPU6050_Read_All(&hi2c1, &MPU6050);
-	  //计算当前角度
-		CalculateYaw_Filtered(MPU6050.Gz, 0.01);
-		OLED_ShowFloatNum(43,40,angle,3,2,OLED_6X8);
-		OLED_Update();
-    // 格式化MPU6050数据并发送
-    sprintf(uart_buffer, "Accel: %.2f, %.2f, %.2f; Gyro: %.2f, %.2f, %.2f\r\n", 
-            MPU6050.Ax, MPU6050.Ay, MPU6050.Az, 
-            MPU6050.Gx, MPU6050.Gy, MPU6050.Gz);
-    HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
-    
-    sprintf(uart_buffer, "Yaw: %.2f\r\n", angle);
-    HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
-    
-    
-    // 短暂延时以减少串口发送频率
-    HAL_Delay(100);
     
 		/*__HAL_TIM_SET_COMPARE(&htim11, TIM_CHANNEL_1, 100);
 		HAL_Delay(10);
