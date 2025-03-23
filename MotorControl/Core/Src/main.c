@@ -65,7 +65,7 @@ char uart_buffer[50];      // UART发送缓冲区
 MPU6050_t MPU6050;         // MPU6050数据结构
 uint8_t mode=0;
 double origine_angle=0.0f;
-double target_angle=-35.0f;
+double target_angle=-32.0f;
 double angle=0.0f;
 
 volatile char rx_buffer[RX_BUFFER_SIZE];
@@ -374,11 +374,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
     uint8_t previous_state = Pre_Direction[0] | Pre_Direction[1] | Pre_Direction[2] | Pre_Direction[3] | Pre_Direction[4] | Pre_Direction[5] | Pre_Direction[6];
 
-    if ((current_state == 0 && previous_state != 0) || (current_state != 0 && previous_state == 0)) {
+    if (current_state == 0 && previous_state != 0) {
         switch_count++; // 记录切换标志
     }
 
-    if (switch_count >= 4) {
+    if (switch_count >= 2) {
         // 第四个切换标志，停止
         stop_flag=1;
     }
@@ -398,8 +398,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 						correct[0]=0;
 						correct[1]=0;
 					}
-		      correct[0]=0.5*rpm[0]*Direction[1]-0.5*rpm[0]*Direction[5];
-			    correct[1]=0.5*rpm[1]*Direction[1]-0.5*rpm[1]*Direction[5];
+		      correct[0]=0.7*rpm[0]*Direction[1]-0.7*rpm[0]*Direction[5];
+			    correct[1]=0.7*rpm[1]*Direction[1]-0.7*rpm[1]*Direction[5];
 		      }
 		    else if(Direction[2]==1||Direction[4]==1){
 			    if(previous_state==0){
@@ -427,11 +427,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
     uint8_t previous_state = Pre_Direction[0] | Pre_Direction[1] | Pre_Direction[2] | Pre_Direction[3] | Pre_Direction[4] | Pre_Direction[5] | Pre_Direction[6];
 
-    if ((current_state == 0 && previous_state != 0) || (current_state != 0 && previous_state == 0)) {
+    if ((current_state == 0 && previous_state != 0)&&angle>=-30.0&&angle<=30.0) {
         switch_count++; // 记录切换标志
     }
 
-    if (switch_count >= 4) {
+    if (switch_count >= 1) {
         // 第四个切换标志，停止
         stop_flag=1;
     } else if(Direction[0]==1||Direction[6]==1){
@@ -439,8 +439,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			    correct[1]=1.0*rpm[1]*Direction[0]-1.0*rpm[1]*Direction[6];
 		    }
 		    else if(Direction[1]==1||Direction[5]==1){
-		      correct[0]=0.5*rpm[0]*Direction[1]-0.5*rpm[0]*Direction[5];
-			    correct[1]=0.5*rpm[1]*Direction[1]-0.5*rpm[1]*Direction[5];
+		      correct[0]=0.7*rpm[0]*Direction[1]-0.7*rpm[0]*Direction[5];
+			    correct[1]=0.7*rpm[1]*Direction[1]-0.7*rpm[1]*Direction[5];
 		      }
 		    else if(Direction[2]==1||Direction[4]==1){
 		      correct[0]=0.25*rpm[0]*Direction[2]-0.25*rpm[0]*Direction[4];
@@ -451,11 +451,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 					correct[1]=0;
 				}
 		    else{
-					if(previous_state==1){
+					if(previous_state==1&&((angle>=110.0&&angle<=180.0)||(angle>=-180.0&&angle<=-110.0))){
 						origine_angle=angle;
 						target_angle=-target_angle;
 					}
 					double angle_error=angle-origine_angle;
+					if(angle_error>=180.0)
+						angle_error-=360.0;
+					if(angle_error<=-180.0)
+						angle_error+=360.0;
 					correct[0]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 					correct[1]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 		    }
@@ -467,11 +471,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
     uint8_t previous_state = Pre_Direction[0] | Pre_Direction[1] | Pre_Direction[2] | Pre_Direction[3] | Pre_Direction[4] | Pre_Direction[5] | Pre_Direction[6];
 
-    if ((current_state == 0 && previous_state != 0) || (current_state != 0 && previous_state == 0)) {
+    if ((current_state == 0 && previous_state != 0)&&angle>=-30.0&&angle<=30.0) {
         switch_count++; // 记录切换标志
     }
 
-    if (switch_count >= 16) {
+    if (switch_count >= 4) {
         // 第 16 个切换标志，停止
         stop_flag=1;
     } else if(Direction[0]==1||Direction[6]==1){
@@ -479,8 +483,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			    correct[1]=1.0*rpm[1]*Direction[0]-1.0*rpm[1]*Direction[6];
 		    }
 		    else if(Direction[1]==1||Direction[5]==1){
-		      correct[0]=0.5*rpm[0]*Direction[1]-0.5*rpm[0]*Direction[5];
-			    correct[1]=0.5*rpm[1]*Direction[1]-0.5*rpm[1]*Direction[5];
+		      correct[0]=0.7*rpm[0]*Direction[1]-0.7*rpm[0]*Direction[5];
+			    correct[1]=0.7*rpm[1]*Direction[1]-0.7*rpm[1]*Direction[5];
 		      }
 		    else if(Direction[2]==1||Direction[4]==1){
 		      correct[0]=0.25*rpm[0]*Direction[2]-0.25*rpm[0]*Direction[4];
@@ -498,6 +502,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 						target_angle=-target_angle;
 					}
 						double angle_error=angle-origine_angle;
+					  if(angle_error>=180.0)
+						  angle_error-=360.0;
+						if(angle_error<=-180.0)
+						  angle_error+=360.0;
 					  correct[0]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 					  correct[1]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 			}
@@ -530,6 +538,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		pre_rpm[0]=rpm[0];
 		pre_rpm[1]=rpm[1];
 		OLED_ShowNum(37,48,mode,1,OLED_6X8);
+		OLED_ShowFloatNum(1,54,target_angle,2,1,OLED_6X8);
 		//Send_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);
   }
 	else if(htim->Instance==TIM3){
@@ -660,7 +669,7 @@ int main(void)
 	target_rpm[1]=100.0f;
   PID_Init(&left_motor_pid, 6.0f, 0.6f, 0.1f, 0.1f); //Kp=0.6,Ki=0.5,Kd=0.1
 	PID_Init(&right_motor_pid, 6.0f, 0.6f, 0.1f, 0.1f); // Kp=4.5,Ki=3.0;Kd=0.0
-	PID_Init(&angle_pid,5.0f,0.24f,0.01f,0.1f);
+	PID_Init(&angle_pid,2.0f,0.24f,0.1f,0.1f);
 	PIDC_Init(&correctl_pid, 40.0f,20.0f,2.0f,0.1f);
 	PIDC_Init(&correctr_pid, 40.0f,20.0f,2.0f,0.1f);
 	Kcl_init(400.0f,200.0f,100.0f);
