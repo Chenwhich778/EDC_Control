@@ -64,24 +64,25 @@ extern void MPU6050_Read_All(I2C_HandleTypeDef *hi2c, MPU6050_t *Data);
 char uart_buffer[50];      // UART发送缓冲区
 MPU6050_t MPU6050;         // MPU6050数据结构
 uint8_t mode=0;
-double origine_angle=0.0f;
-double target_angle=0.0f;
-double angle=0.0f;
-double pre_angle=0.0f;
+float origine_angle=0.0f;
+float target_angle=0.0f;
+float angle=0.0f;
+float pre_angle=0.0f;
 volatile char rx_buffer[RX_BUFFER_SIZE];
 volatile uint8_t rx_index = 0;
 volatile uint8_t rx_ready = 0;
 char rx_char;
 uint8_t stop_flag=0;
-double x=0.0;
-double y=0.0;
+float x=0.0;
+float y=0.0;
 const float SAMPLE_TIME = 0.1f;      // 定时中断周期（秒
-double wheel_radius=3.2;    //单位厘米
-double linear;
-double wheel_distance=19.5;
-double ground_x=80.0;
-double ground_y=100.0;
-double angle_correct[3]={20.0,10.0,5.0};
+float wheel_radius=3.2;    //单位厘米
+float linear;
+float wheel_distance=19.5;
+float ground_x=80.0;
+float ground_y=100.0;
+float angle_correct[3]={20.0,10.0,5.0};
+float angle_to_hudu=3.1415926/180.0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -103,21 +104,21 @@ void Send_MultiData_FireWater(float speed_rpm, float pidsetpoint,  float speed_r
 }
 
 
-void CalculateYaw_Filtered(double gyro_z, double dt)
+void CalculateYaw_Filtered(float gyro_z, float dt)
 {
     // 静态变量保存yaw和bias
-    static double yaw = 0.0;
-    static double bias = 0.0;
+    static float yaw = 0.0;
+    static float bias = 0.0;
     
     // 如果测量值很小，认为设备静止，可以更新零偏
-    const double threshold = 2.5; // 阈值，根据实际情况调整
+    const float threshold = 2.5; // 阈值，根据实际情况调整
     if(fabs(gyro_z) < threshold)
     {
         bias = gyro_z;
     }
     
     // 用减去偏置后的角速度积分计算yaw
-    double corrected_rate = gyro_z - bias;
+    float corrected_rate = gyro_z - bias;
     yaw += corrected_rate * dt;
     angle=yaw*11;
     return;
@@ -287,24 +288,24 @@ float PIDC_Compute(PID_Correct *pid, float rpm[],float pre_rpm[]) {
 
 void Distance_x_y(){
 	
-	double average_angle=(angle+pre_angle)/2-origine_angle;
-	double delt_angle=angle-pre_angle;
-	double average_rpm_0=(rpm[0]+pre_rpm[0])/2;
-	double average_rpm_1=(rpm[1]+pre_rpm[1])/2;
+	float average_angle=((angle+pre_angle)/2-origine_angle)*angle_to_hudu;
+	float delt_angle=(angle-pre_angle)*angle_to_hudu;
+	float average_rpm_0=(rpm[0]+pre_rpm[0])/2;
+	float average_rpm_1=(rpm[1]+pre_rpm[1])/2;
 	if(average_rpm_0<average_rpm_1){
 		if((switch_count&0x01)==1)
-	    x+=sin(average_angle)*average_rpm_0*linear*SAMPLE_TIME+delt_angle/180.0*3.1415926*wheel_distance*sin(average_angle);
+	    x+=sin(average_angle)*average_rpm_0*linear*SAMPLE_TIME+delt_angle*angle_to_hudu*wheel_distance*sin(average_angle);
 		else
-			x-=sin(average_angle)*average_rpm_0*linear*SAMPLE_TIME+delt_angle/180.0*3.1415926*wheel_distance*sin(average_angle);
-		y+=cos(average_angle)*average_rpm_0*linear*SAMPLE_TIME+delt_angle/180.0*3.1415926*wheel_distance*cos(average_angle);
+			x-=sin(average_angle)*average_rpm_0*linear*SAMPLE_TIME+delt_angle*angle_to_hudu*wheel_distance*sin(average_angle);
+		y+=cos(average_angle)*average_rpm_0*linear*SAMPLE_TIME+delt_angle*angle_to_hudu*wheel_distance*cos(average_angle);
 		
 	}
 	else{
 		if((switch_count&0x01)==1)
-	    x+=sin(average_angle)*average_rpm_1*linear*SAMPLE_TIME+delt_angle/180.0*3.1415926*wheel_distance*sin(average_angle);
+	    x+=sin(average_angle)*average_rpm_1*linear*SAMPLE_TIME+delt_angle*angle_to_hudu*wheel_distance*sin(average_angle);
 		else
-			x-=sin(average_angle)*average_rpm_1*linear*SAMPLE_TIME+delt_angle/180.0*3.1415926*wheel_distance*sin(average_angle);
-		y+=cos(average_angle)*average_rpm_1*linear*SAMPLE_TIME+delt_angle/180.0*3.1415926*wheel_distance*cos(average_angle);
+			x-=sin(average_angle)*average_rpm_1*linear*SAMPLE_TIME+delt_angle*angle_to_hudu*wheel_distance*sin(average_angle);
+		y+=cos(average_angle)*average_rpm_1*linear*SAMPLE_TIME+delt_angle*angle_to_hudu*wheel_distance*cos(average_angle);
 	}
 	return;
 }
@@ -325,168 +326,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			current_total[1]+=TIM2->CNT;
 			TIM2->CNT=0;
 		}	
-  }
-	else if(htim->Instance==TIM3){
-		current_total[0] +=(TIM3->CR1 & TIM_CR1_DIR) ? -65536 :65536;
-	}
-	else if(htim->Instance==TIM2){
-		current_total[1] +=(TIM2->CR1 & TIM_CR1_DIR) ? -65536 : 65536;
-	}
-}
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    if (HAL_GetTick() - last_key_time > 20) { // 200ms防抖
-        last_key_time = HAL_GetTick();
-        correct[0] = 0;
-        correct[1] = 0;
-        straight_error = 0;
-        pre_straight_error = 0;
-        switch_count = 0; // 重置计数器
-        if (GPIO_Pin == Key0_Pin) {
-            mode = 1;
-					  stop_flag=0;
-        } else if (GPIO_Pin == Key1_Pin) {
-            mode = 2;
-					  stop_flag=0;
-        } else if (GPIO_Pin == Key2_Pin) {
-            mode = 3;
-					  stop_flag=0;
-        } else if (GPIO_Pin == Key3_Pin) {
-            mode = 4;
-					  stop_flag=0;
-        }
-    }
-}
-// 解析数据并更新PID参数
-/*void Parse_Data() {
-    char *token;
-    float values[3];
-    uint8_t count = 0;
-
-    token = strtok((char *)rx_buffer, ",");
-    while (token != NULL && count < 3) {
-        values[count++] = atof(token);
-        token = strtok(NULL, ",");
-    }
-
-    if (count == 3) { // 确保接收到三个值
-        right_motor_pid.Kp = values[0];
-        right_motor_pid.Ki = values[1];
-        right_motor_pid.Kd = values[2];
-    }
-	}
-*/
-// USART接收中断回调函数
-/*void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-    if (huart->Instance == USART1) { // 确保是目标USART
-        // 检测结束符（回车或换行）
-        if (rx_char == '\r' || rx_char == '\n') {
-            if (rx_index > 0) { // 非空数据
-                rx_buffer[rx_index] = '\0'; // 终止字符串
-                rx_ready = 1; // 设置标志位
-                rx_index = 0; // 重置索引
-            }
-        } else {
-            // 将字符存入缓冲区，防止溢出
-            if (rx_index < RX_BUFFER_SIZE - 1) {
-                rx_buffer[rx_index++] = rx_char;
-            } else {
-                // 缓冲区满，重置索引（可选：错误处理）
-                rx_index = 0;
-            }
-        }
-        // 重新启动接收中断
-         HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);
-    }
-}*/
-	
-
-/* USER CODE END 0 */
-
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
-
-  /* USER CODE BEGIN 1 */
-  
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
-  SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_TIM11_Init();
-  MX_RTC_Init();
-  MX_USART1_UART_Init();
-  MX_TIM3_Init();
-  MX_TIM1_Init();
-  MX_TIM9_Init();
-  MX_TIM2_Init();
-  MX_I2C1_Init();
-  /* USER CODE BEGIN 2 */
-	MPU6050_Init(&hi2c1);
-	
-	// PID参数初始化（需根据实际系统调整）
-  /*if(HAL_GPIO_ReadPin(BIN1_GPIO_Port,BIN1_Pin)==GPIO_PIN_SET){
-    TIM2->CNT=65535;
-  }*/
-	target_rpm[0]=100.0f;
-	target_rpm[1]=100.0f;
-  PID_Init(&left_motor_pid, 7.0f, 0.6f, 0.1f, SAMPLE_TIME); //    6.0f, 0.6f, 0.1f, SAMPLE_TIME
-	PID_Init(&right_motor_pid, 7.0f, 0.6f, 0.1f, SAMPLE_TIME); // 
-	
-	PID_Init(&angle_pid,2.0f,0.24f,0.1f,SAMPLE_TIME);   //角度pid
-	
-	PIDC_Init(&correctl_pid, 40.0f,20.0f,2.0f,SAMPLE_TIME);//待会删了
-	PIDC_Init(&correctr_pid, 40.0f,20.0f,2.0f,SAMPLE_TIME);
-	Kcl_init(400.0f,200.0f,100.0f);
-	Kcr_init(400.0f,200.0f,100.0f);
-	
-	linear=wheel_radius*2*3.1415926/60;
-	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
-	HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
-	HAL_TIM_Base_Start_IT(&htim1);
-	HAL_TIM_PWM_Start(&htim11,TIM_CHANNEL_1);
-	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_2);
-	//OLED
-	OLED_Init();
-	OLED_ShowString(1,0,"LDuty:",OLED_6X8);
-	OLED_ShowChar(67,0,'%',OLED_6X8);
-	OLED_ShowString(1,8,"RDuty:",OLED_6X8);
-	OLED_ShowChar(67,8,'%',OLED_6X8);
-	OLED_ShowString(1,16,"LRPM:",OLED_6X8);
-	OLED_ShowString(1,24,"RRPM:",OLED_6X8);
-	OLED_ShowFloatNum(31,16,rpm[0],3,1,OLED_6X8);
-	OLED_ShowFloatNum(31,24,rpm[1],3,1,OLED_6X8);
-	OLED_ShowString(1,32,"MAX:350rpm",OLED_6X8);
-	OLED_ShowString(1,40,"Angle:",OLED_6X8);
-	OLED_ShowString(1,48,"MODE:",OLED_6X8);
-	
-	//USART
-	
-  HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);  //启动 USART 接收中断
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
 		// 计算增量（处理溢出）
     int32_t delta_left = current_total[0]-pre_total[0];
 		int32_t delta_right = current_total[1]-pre_total[1];
@@ -662,10 +501,10 @@ int main(void)
 					 //计算位移
 		      Distance_x_y();
 		       //计算目标角度
-		      target_angle=atan2((ground_x-x),(ground_y-y));
+		      target_angle=atan2((ground_x-x),(ground_y-y))/angle_to_hudu;
 					if((switch_count&0x01)==0)
 						target_angle=-target_angle;
-					double angle_error=angle-origine_angle;
+					float angle_error=angle-origine_angle;
 					correct[0]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 					correct[1]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 		    }
@@ -712,9 +551,10 @@ int main(void)
 		        Distance_x_y();
 		         //计算目标角度
 		        target_angle=atan2((ground_x-x),(ground_y-y));
+					  target_angle=target_angle/angle_to_hudu;
 					  if((switch_count&0x01)==0)
 						  target_angle=-target_angle;
-						double angle_error=angle-origine_angle;
+						float angle_error=angle-origine_angle;
 					  correct[0]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 					  correct[1]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 			}
@@ -750,9 +590,171 @@ int main(void)
 		OLED_ShowFloatNum(1,54,target_angle,2,1,OLED_6X8);
 		
 		OLED_Update();
+  }
+	else if(htim->Instance==TIM3){
+		current_total[0] +=(TIM3->CR1 & TIM_CR1_DIR) ? -65536 :65536;
+	}
+	else if(htim->Instance==TIM2){
+		current_total[1] +=(TIM2->CR1 & TIM_CR1_DIR) ? -65536 : 65536;
+	}
+}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    if (HAL_GetTick() - last_key_time > 20) { // 200ms防抖
+        last_key_time = HAL_GetTick();
+        correct[0] = 0;
+        correct[1] = 0;
+        straight_error = 0;
+        pre_straight_error = 0;
+        switch_count = 0; // 重置计数器
+        if (GPIO_Pin == Key0_Pin) {
+            mode = 1;
+					  stop_flag=0;
+        } else if (GPIO_Pin == Key1_Pin) {
+            mode = 2;
+					  stop_flag=0;
+        } else if (GPIO_Pin == Key2_Pin) {
+            mode = 3;
+					  stop_flag=0;
+        } else if (GPIO_Pin == Key3_Pin) {
+            mode = 4;
+					  stop_flag=0;
+        }
+    }
+}
+// 解析数据并更新PID参数
+/*void Parse_Data() {
+    char *token;
+    float values[3];
+    uint8_t count = 0;
+
+    token = strtok((char *)rx_buffer, ",");
+    while (token != NULL && count < 3) {
+        values[count++] = atof(token);
+        token = strtok(NULL, ",");
+    }
+
+    if (count == 3) { // 确保接收到三个值
+        right_motor_pid.Kp = values[0];
+        right_motor_pid.Ki = values[1];
+        right_motor_pid.Kd = values[2];
+    }
+	}
+*/
+// USART接收中断回调函数
+/*void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+    if (huart->Instance == USART1) { // 确保是目标USART
+        // 检测结束符（回车或换行）
+        if (rx_char == '\r' || rx_char == '\n') {
+            if (rx_index > 0) { // 非空数据
+                rx_buffer[rx_index] = '\0'; // 终止字符串
+                rx_ready = 1; // 设置标志位
+                rx_index = 0; // 重置索引
+            }
+        } else {
+            // 将字符存入缓冲区，防止溢出
+            if (rx_index < RX_BUFFER_SIZE - 1) {
+                rx_buffer[rx_index++] = rx_char;
+            } else {
+                // 缓冲区满，重置索引（可选：错误处理）
+                rx_index = 0;
+            }
+        }
+        // 重新启动接收中断
+         HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);
+    }
+}*/
+	
+
+/* USER CODE END 0 */
+
+/**
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+
+  /* USER CODE BEGIN 1 */
+  
+  /* USER CODE END 1 */
+
+  /* MCU Configuration--------------------------------------------------------*/
+
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
+
+  /* USER CODE BEGIN Init */
+
+  /* USER CODE END Init */
+
+  /* Configure the system clock */
+  SystemClock_Config();
+
+  /* USER CODE BEGIN SysInit */
+
+  /* USER CODE END SysInit */
+
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_TIM11_Init();
+  MX_RTC_Init();
+  MX_USART1_UART_Init();
+  MX_TIM3_Init();
+  MX_TIM1_Init();
+  MX_TIM9_Init();
+  MX_TIM2_Init();
+  MX_I2C1_Init();
+  /* USER CODE BEGIN 2 */
+	MPU6050_Init(&hi2c1);
+	
+	// PID参数初始化（需根据实际系统调整）
+  /*if(HAL_GPIO_ReadPin(BIN1_GPIO_Port,BIN1_Pin)==GPIO_PIN_SET){
+    TIM2->CNT=65535;
+  }*/
+	target_rpm[0]=100.0f;
+	target_rpm[1]=100.0f;
+  PID_Init(&left_motor_pid, 6.0f, 0.6f, 0.1f, SAMPLE_TIME); //    6.0f, 0.6f, 0.1f, SAMPLE_TIME
+	PID_Init(&right_motor_pid, 6.0f, 0.6f, 0.1f, SAMPLE_TIME); // 
+	
+	PID_Init(&angle_pid,2.0f,0.24f,0.1f,SAMPLE_TIME);   //角度pid
+	
+	PIDC_Init(&correctl_pid, 40.0f,20.0f,2.0f,SAMPLE_TIME);//待会删了
+	PIDC_Init(&correctr_pid, 40.0f,20.0f,2.0f,SAMPLE_TIME);
+	Kcl_init(400.0f,200.0f,100.0f);
+	Kcr_init(400.0f,200.0f,100.0f);
+	
+	linear=wheel_radius*2*3.1415926/60;
+	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+	HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
+	HAL_TIM_Base_Start_IT(&htim1);
+	HAL_TIM_PWM_Start(&htim11,TIM_CHANNEL_1);
+	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_2);
+	//OLED
+	OLED_Init();
+	OLED_ShowString(1,0,"LDuty:",OLED_6X8);
+	OLED_ShowChar(67,0,'%',OLED_6X8);
+	OLED_ShowString(1,8,"RDuty:",OLED_6X8);
+	OLED_ShowChar(67,8,'%',OLED_6X8);
+	OLED_ShowString(1,16,"LRPM:",OLED_6X8);
+	OLED_ShowString(1,24,"RRPM:",OLED_6X8);
+	OLED_ShowFloatNum(31,16,rpm[0],3,1,OLED_6X8);
+	OLED_ShowFloatNum(31,24,rpm[1],3,1,OLED_6X8);
+	OLED_ShowString(1,32,"MAX:350rpm",OLED_6X8);
+	OLED_ShowString(1,40,"Angle:",OLED_6X8);
+	OLED_ShowString(1,48,"MODE:",OLED_6X8);
+	
+	//USART
+	
+  HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);  //启动 USART 接收中断
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
+  while (1)
+  {
+		
 		//Send_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);
 		
-		HAL_Delay(100);
     // 格式化MPU6050数据并发送
     //sprintf(uart_buffer, "Accel: %.2f, %.2f, %.2f; Gyro: %.2f, %.2f, %.2f\r\n", 
             //MPU6050.Ax, MPU6050.Ay, MPU6050.Az, 
