@@ -75,7 +75,7 @@ char rx_char;
 uint8_t stop_flag=0;
 float x=0.0;
 float y=0.0;
-const float SAMPLE_TIME = 0.1f;      // 定时中断周期（秒
+const float SAMPLE_TIME = 0.01f;      // 定时中断周期（秒
 float wheel_radius=3.2;    //单位厘米
 float linear;
 float wheel_distance=19.5;
@@ -120,7 +120,7 @@ void CalculateYaw_Filtered(float gyro_z, float dt)
     // 用减去偏置后的角速度积分计算yaw
     float corrected_rate = gyro_z - bias;
     yaw += corrected_rate * dt;
-    angle=yaw*11;
+    angle=yaw*10.0;
     return;
 }
 typedef struct {
@@ -394,8 +394,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		switch (mode){
 			case 1: { // 直行后停止
     // 直行 PID 控制
-    correct[0] = PIDC_Compute(&correctl_pid, rpm, pre_rpm);
-    correct[1] = PIDC_Compute(&correctr_pid, rpm, pre_rpm);
+    correct[0] = 0;
+    correct[1] = 0;
 
     // 检测切换标志
     uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
@@ -588,8 +588,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		pre_rpm[1]=rpm[1];
 		OLED_ShowNum(37,48,mode,1,OLED_6X8);
 		OLED_ShowFloatNum(1,54,target_angle,2,1,OLED_6X8);
-		
-		OLED_Update();
+	  OLED_Update();
   }
 	else if(htim->Instance==TIM3){
 		current_total[0] +=(TIM3->CR1 & TIM_CR1_DIR) ? -65536 :65536;
@@ -599,7 +598,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	}
 }
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    if (HAL_GetTick() - last_key_time > 20) { // 200ms防抖
+    if (HAL_GetTick() - last_key_time > 10) { // 200ms防抖
         last_key_time = HAL_GetTick();
         correct[0] = 0;
         correct[1] = 0;
@@ -707,7 +706,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
 	MPU6050_Init(&hi2c1);
 	
-	// PID参数初始化（需根据实际系统调整）
   /*if(HAL_GPIO_ReadPin(BIN1_GPIO_Port,BIN1_Pin)==GPIO_PIN_SET){
     TIM2->CNT=65535;
   }*/
@@ -729,7 +727,9 @@ int main(void)
 	HAL_TIM_Base_Start_IT(&htim1);
 	HAL_TIM_PWM_Start(&htim11,TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_2);
+	
 	//OLED
+	
 	OLED_Init();
 	OLED_ShowString(1,0,"LDuty:",OLED_6X8);
 	OLED_ShowChar(67,0,'%',OLED_6X8);
@@ -743,6 +743,7 @@ int main(void)
 	OLED_ShowString(1,40,"Angle:",OLED_6X8);
 	OLED_ShowString(1,48,"MODE:",OLED_6X8);
 	
+	OLED_Update();
 	//USART
 	
   HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);  //启动 USART 接收中断
@@ -752,7 +753,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		
 		//Send_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);
 		
     // 格式化MPU6050数据并发送
