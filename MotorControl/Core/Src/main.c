@@ -93,6 +93,7 @@ uint8_t alarm_enable=0;
 uint32_t sensor_time=0;
 uint32_t pre_sensor_time=0;
 uint32_t un_sensor_time=0;
+uint32_t beep_time=0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -391,85 +392,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		  // 读取MPU6050数据
 		pre_angle=angle;
 	  //计算当前角度
+		MPU6050_Read_All(&hi2c1, &MPU6050);
 		CalculateYaw_Filtered(MPU6050.Gz  ,SAMPLE_TIME);
 		//mode
+		 uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
+    uint8_t previous_state = Pre_Direction[0] | Pre_Direction[1] | Pre_Direction[2] | Pre_Direction[3] | Pre_Direction[4] | Pre_Direction[5] | Pre_Direction[6];
 		switch (mode){
 			case 1: { // 直行后停止
-    // 直行 PID 控制
-    correct[0] = 0;
-    correct[1] = 0;
-
     // 检测切换标志
-    uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
-    uint8_t previous_state = Pre_Direction[0] | Pre_Direction[1] | Pre_Direction[2] | Pre_Direction[3] | Pre_Direction[4] | Pre_Direction[5] | Pre_Direction[6];
-    if ((current_state == 0 && previous_state != 0) || (current_state != 0 && previous_state == 0)) {
-        switch_count++; // 记录切换标志
-			  alarm_enable=1;
-    }
-    if (switch_count>=1) {
-        // 检测到切换标志，停止
-        stop_flag=1;
-    }
-    break;
-	 }
-			case 2: { // 正常循迹，第四个切换标志停止
-    // 检测切换标志
-    uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
-    uint8_t previous_state = Pre_Direction[0] | Pre_Direction[1] | Pre_Direction[2] | Pre_Direction[3] | Pre_Direction[4] | Pre_Direction[5] | Pre_Direction[6];
-
-    if (current_state == 0 && previous_state != 0) {
-        switch_count++; // 记录切换标志
-			  alarm_enable=1;
-    }
-
-    if (switch_count >= 2) {
-        // 第四个切换标志，停止
-        stop_flag=1;
-    }
-		else {
-			if(Direction[0]==1||Direction[6]==1){
-			    if(previous_state==0){
-				    straight_error=0;
-						correct[0]=0;
-						correct[1]=0;
-					}
-		      correct[0]=1.0*rpm[0]*Direction[0]-1.0*rpm[0]*Direction[6];
-			    correct[1]=1.0*rpm[1]*Direction[0]-1.0*rpm[1]*Direction[6];
-		    }
-		    else if(Direction[1]==1||Direction[5]==1){
-			    if(previous_state==0){
-				    straight_error=0;
-						correct[0]=0;
-						correct[1]=0;
-					}
-		      correct[0]=0.5*rpm[0]*Direction[1]-0.5*rpm[0]*Direction[5];
-			    correct[1]=0.5*rpm[1]*Direction[1]-0.5*rpm[1]*Direction[5];
-		      }
-		    else if(Direction[2]==1||Direction[4]==1){
-			    if(previous_state==0){
-				    straight_error=0;
-						correct[0]=0;
-						correct[1]=0;
-					}
-		      correct[0]=0.1*rpm[0]*Direction[2]-0.1*rpm[0]*Direction[4];
-			    correct[1]=0.1*rpm[1]*Direction[2]-0.1*rpm[1]*Direction[4];
-		    }
-				else if(Direction[3]==1){                                       //直行纠正
-			    correct[0]=0;
-			    correct[1]=0;
-		    }
-		    else{                                       //直行纠正
-			    straight_error+=Pre_Direction[0]*Kcl[0]-Pre_Direction[6]*Kcr[0]+Pre_Direction[1]*Kcl[1]-Pre_Direction[5]*Kcr[1]+Pre_Direction[2]*Kcl[2]*-Pre_Direction[4]*Kcr[2];
-			    correct[0]=PIDC_Compute(&correctl_pid,rpm,pre_rpm);
-			    correct[1]=PIDC_Compute(&correctr_pid,rpm,pre_rpm);
-		    }
-			}
-    break;
-}
-			case 3: { // 左转 45 度后直行，奇数切换标志循迹，偶数切换标志左转 45 度并直行，第2个切换标志停止
-    // 检测切换标志
-    uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
-    uint8_t previous_state = Pre_Direction[0] | Pre_Direction[1] | Pre_Direction[2] | Pre_Direction[3] | Pre_Direction[4] | Pre_Direction[5] | Pre_Direction[6];
     if(current_state==1){
 			pre_sensor_time=sensor_time;
 			sensor_time++;
@@ -480,13 +410,40 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			sensor_time=0;
 			un_sensor_time++;
 		}
-    if ((x*x+y*y)>10000.0&&sensor_time>=10) {
-        switch_count++; // 记录切换标志
-			  alarm_enable=1;
-			  x=y=0;
-    }
-
-    if ((switch_count >= 2)&&un_sensor_time>=10) {
+		if(sensor_time>=10&&y>=85.0){
+			switch_count++;
+			alarm_enable=1;
+			y=0;
+		}
+    if (switch_count>=1)// 检测到切换标志，停止
+        stop_flag=1;
+		else{
+		Distance_x_y();
+		target_angle=origine_angle;
+		float angle_error=angle-origine_angle;
+		correct[0]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
+		correct[1]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
+		}
+    break;
+	 }
+			case 2: { // 正常循迹，第四个切换标志停止
+    // 检测切换标志
+    if(current_state==1){
+			pre_sensor_time=sensor_time;
+			sensor_time++;
+			un_sensor_time=0;
+		}
+		else{
+			pre_sensor_time=sensor_time;
+			sensor_time=0;
+			un_sensor_time++;
+		}
+    if(sensor_time>=10&&y>=80.0){
+			switch_count++;
+			alarm_enable=1;
+			y=0;
+		}
+		if (switch_count >= 2&&un_sensor_time>=5) {
         // 第2个切换标志，停止
         stop_flag=1;
     } else if(Direction[0]==1||Direction[6]==1){
@@ -513,7 +470,133 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 					correct[1]=0.1*rpm[1]*Pre_Direction[2]-0.1*rpm[1]*Pre_Direction[4];
 					}
 				}
+		    else{                                      
+			    if(pre_sensor_time>=5){
+						origine_angle=angle;
+						angle_pid.integral=0.0;
+						angle_pid.prev_d=0.0;
+						angle_pid.prev_error=0.0;
+						x_direction=0.0;
+						x_delt=0.0;
+						y_direction=0.0;
+						y_delt=0.0;
+						alarm_enable=1;
+					}
+					target_angle=0.0;
+					if(switch_count>0){
+					  if(switch_count%2==0){
+						  angle_correct=-17.0;
+						  target_angle=angle_correct;
+					  }
+					  else{
+						  angle_correct=-17.0;
+						  target_angle=angle_correct;
+					  }
+				  }
+					  Distance_x_y();
+						float angle_error=angle-origine_angle;
+					  correct[0]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
+					  correct[1]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
+		    }
+    break;
+}
+			case 3: { // 左转 45 度后直行，奇数切换标志循迹，偶数切换标志左转 45 度并直行，第2个切换标志停止
+    // 检测切换标志
+    if(current_state==1){
+			pre_sensor_time=sensor_time;
+			sensor_time++;
+			un_sensor_time=0;
+		}
+		else{
+			pre_sensor_time=sensor_time;
+			sensor_time=0;
+			un_sensor_time++;
+		}
+    if ((y>=80.0||x>=60.0)&&sensor_time>=15) {
+        switch_count++; // 记录切换标志
+			  alarm_enable=1;
+			  x=y=0;
+    }
+
+    if ((switch_count >= 2)&&un_sensor_time>=5) {
+        // 第2个切换标志，停止
+        stop_flag=1;
+    } else if(Direction[0]==1||Direction[6]==1){
+			    if(sensor_time>=15){
+		      correct[0]=1.0*rpm[0]*Direction[0]-1.0*rpm[0]*Direction[6];
+			    correct[1]=1.0*rpm[1]*Direction[0]-1.0*rpm[1]*Direction[6];
+					}
+					else {
+						if(switch_count%2==0){
+						correct[0]=-100;
+						correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
+					}
+		    }
+		    else if(Direction[1]==1||Direction[5]==1){
+					if(sensor_time>=10){
+		      correct[0]=0.8*rpm[0]*Direction[1]-0.8*rpm[0]*Direction[5];
+			    correct[1]=0.8*rpm[1]*Direction[1]-0.8*rpm[1]*Direction[5];
+					}
+					else {
+						if(switch_count%2==0){
+						correct[0]=-100;
+						correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
+					}
+		      }
+		    else if(Direction[2]==1||Direction[4]==1){
+					if(sensor_time>=7){
+		      correct[0]=0.2*rpm[0]*Direction[2]-0.2*rpm[0]*Direction[4];
+			    correct[1]=0.2*rpm[1]*Direction[2]-0.2*rpm[1]*Direction[4];
+					}
+					else {
+						if(switch_count%2==0){
+						correct[0]=-100;
+						correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
+					}
+		    }
+				else if(Direction[3]==1){
+					if(sensor_time>=5){
+					correct[0]=0.1*rpm[0]*Pre_Direction[2]-0.1*rpm[0]*Pre_Direction[4];
+					correct[1]=0.1*rpm[1]*Pre_Direction[2]-0.1*rpm[1]*Pre_Direction[4];
+					}
+					else {
+						if(switch_count%2==0){
+						correct[0]=-100;
+						correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
+					}
+				}
 		    else{
+					if(y>=90.0){
+						if(switch_count%2==0){
+						  correct[0]=-100;
+						  correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
+					}
+					else{
 					if(pre_sensor_time>=10){
 						origine_angle=angle;
 						angle_pid.integral=0.0;
@@ -523,8 +606,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 						x_delt=0.0;
 						y_direction=0.0;
 						y_delt=0.0;
+						alarm_enable=1;
 					}
 					 //计算位移
+					if(switch_count%2==0)
+						angle_correct=9.27;
+					else
+						angle_correct=3.8;
 					if(switch_count>0){
 						  ground_y=128.06*sin((51.34-angle_correct)*angle_to_hudu);
 						  ground_x=128.06*cos((51.34-angle_correct)*angle_to_hudu);
@@ -537,13 +625,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 					float angle_error=angle-origine_angle;
 					correct[0]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 					correct[1]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
+				}
 		    }
     break;
 		
 }
 			case 4: { // 同模式 3，但在第 8 个切换标志
-    uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
-    uint8_t previous_state = Pre_Direction[0] | Pre_Direction[1] | Pre_Direction[2] | Pre_Direction[3] | Pre_Direction[4] | Pre_Direction[5] | Pre_Direction[6];
     if(current_state==1){
 			pre_sensor_time=sensor_time;
 			sensor_time++;
@@ -554,31 +641,61 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 			sensor_time=0;
 			un_sensor_time++;
 		}
-    if ((x*x+y*y)>10000.0&&sensor_time>=10) {
+    if ((y>=80.0||x>=60.0)&&sensor_time>=15) {
         switch_count++; // 记录切换标志
 			  alarm_enable=1;
 			  x=y=0;
     }
 
-    if ((switch_count >= 8)&&un_sensor_time>=10) {
+    if ((switch_count >= 8)&&un_sensor_time>=5) {
         // 第2个切换标志，停止
         stop_flag=1;
     } else if(Direction[0]==1||Direction[6]==1){
-			    if(sensor_time>=5){
-		      correct[0]=1.2*rpm[0]*Direction[0]-1.2*rpm[0]*Direction[6];
-			    correct[1]=1.2*rpm[1]*Direction[0]-1.2*rpm[1]*Direction[6];
+			    if(sensor_time>=15){
+		      correct[0]=1.0*rpm[0]*Direction[0]-1.0*rpm[0]*Direction[6];
+			    correct[1]=1.0*rpm[1]*Direction[0]-1.0*rpm[1]*Direction[6];
+					}
+					else {
+						if(switch_count%2==0){
+						correct[0]=-100;
+						correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
 					}
 		    }
 		    else if(Direction[1]==1||Direction[5]==1){
-					if(sensor_time>=5){
+					if(sensor_time>=10){
 		      correct[0]=0.8*rpm[0]*Direction[1]-0.8*rpm[0]*Direction[5];
 			    correct[1]=0.8*rpm[1]*Direction[1]-0.8*rpm[1]*Direction[5];
 					}
+					else {
+						if(switch_count%2==0){
+						correct[0]=-100;
+						correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
+					}
 		      }
 		    else if(Direction[2]==1||Direction[4]==1){
-					if(sensor_time>=5){
+					if(sensor_time>=7){
 		      correct[0]=0.2*rpm[0]*Direction[2]-0.2*rpm[0]*Direction[4];
 			    correct[1]=0.2*rpm[1]*Direction[2]-0.2*rpm[1]*Direction[4];
+					}
+					else {
+						if(switch_count%2==0){
+						correct[0]=-100;
+						correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
 					}
 		    }
 				else if(Direction[3]==1){
@@ -586,8 +703,29 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 					correct[0]=0.1*rpm[0]*Pre_Direction[2]-0.1*rpm[0]*Pre_Direction[4];
 					correct[1]=0.1*rpm[1]*Pre_Direction[2]-0.1*rpm[1]*Pre_Direction[4];
 					}
+					else {
+						if(switch_count%2==0){
+						correct[0]=-100;
+						correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
+					}
 				}
-		    else{
+		    else {
+					if(y>=90.0){
+						if(switch_count%2==0){
+						  correct[0]=-100;
+						  correct[1]=-100;
+						}
+						else{
+							correct[0]=100;
+						  correct[1]=100;
+						}
+					}
+					else{
 					if(pre_sensor_time>=10){
 						origine_angle=angle;
 						angle_pid.integral=0.0;
@@ -597,12 +735,32 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 						x_delt=0.0;
 						y_direction=0.0;
 						y_delt=0.0;
+						alarm_enable=1;
 					}
 					   //计算位移
-					if(switch_count%2==0)
-						angle_correct=9.27;//4.5*Pre_Direction[3]+10.5*Pre_Direction[2]+20*Pre_Direction[1];
-					else
-						angle_correct=3.75;//*Pre_Direction[3]+4.0*Pre_Direction[4]+12.0*Pre_Direction[5]+20.0*Pre_Direction[6];
+					switch(switch_count){
+					  case 2:
+						  angle_correct=8.0;
+						break;
+						case 1:
+						  angle_correct=3.0;
+						break;
+						case 3:
+						  angle_correct=3.0;
+						break;
+						case 4:
+						  angle_correct=8.0;
+						break;
+						case 5:
+						  angle_correct=3.0;
+						break;
+						case 6:
+						  angle_correct=8.0;
+						break;
+						case 7:
+						  angle_correct=3.0;
+						break;
+				}
 					if(switch_count>0){
 						  ground_y=128.06*sin((51.34-angle_correct)*angle_to_hudu);
 						  ground_x=128.06*cos((51.34-angle_correct)*angle_to_hudu);
@@ -616,6 +774,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 						float angle_error=angle-origine_angle;
 					  correct[0]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
 					  correct[1]=-PID_angle_Compute(&angle_pid,target_angle,angle_error);
+					}
 			  }
 				break;
 		}
@@ -648,9 +807,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	else if(htim->Instance==TIM2){
 		current_total[1] +=(TIM2->CR1 & TIM_CR1_DIR) ? -65536 : 65536;
   }
-	else if(htim->Instance==TIM8){
-		
-	}
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
@@ -664,9 +820,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         if (GPIO_Pin == Key0_Pin) {
             mode = 1;
 					  stop_flag=0;
+					  origine_angle=angle;
         } else if (GPIO_Pin == Key1_Pin) {
             mode = 2;
 					  stop_flag=0;
+					  origine_angle=angle;
         } else if (GPIO_Pin == Key2_Pin) {
             mode = 3;
 					  stop_flag=0;
@@ -761,7 +919,7 @@ int main(void)
   MX_TIM9_Init();
   MX_TIM2_Init();
   MX_I2C1_Init();
-  MX_TIM8_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
 	MPU6050_Init(&hi2c1);
 	
@@ -786,7 +944,7 @@ int main(void)
 	HAL_TIM_Base_Start_IT(&htim1);
 	HAL_TIM_PWM_Start(&htim11,TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_2);
-	
+	HAL_TIM_PWM_Start(&htim5,TIM_CHANNEL_3);
 	//OLED
 	
 	OLED_Init();
@@ -812,7 +970,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		MPU6050_Read_All(&hi2c1, &MPU6050);
 		float angle_show=angle;
 		while(angle_show>=360.0)
 			angle_show-=360.0;
@@ -826,7 +983,18 @@ int main(void)
 		OLED_ShowNum(37,48,mode,1,OLED_6X8);
 		OLED_ShowNum(46,48,switch_count,1,OLED_6X8);
 		OLED_ShowFloatNum(1,54,target_angle,2,1,OLED_6X8);
+		OLED_ShowFloatNum(37,54,x,2,1,OLED_6X8);
+		OLED_ShowFloatNum(73,54,y,2,1,OLED_6X8);
 		OLED_Update();
+		if(alarm_enable==1){
+			__HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, 500);
+			beep_time++;
+		}
+		if(beep_time>=20){
+			__HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, 0);
+			alarm_enable=0;
+			beep_time=0;
+		}
 		HAL_Delay(10);
 		//Send_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);
 		
