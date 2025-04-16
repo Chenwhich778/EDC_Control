@@ -58,6 +58,7 @@ extern float cruise_distance; // Ñ²º½½×¶ÎÂö³åÊý
 void PID_Init(PID_Controller *pid, float Kp, float Ki, float Kd, float Ts,float max);
 float PID_Compute(PID_Controller *pid, float setpoint, float measurement);
 void read_Direction_flag(uint8_t Direction[],uint8_t Pre_Direction[],uint8_t n);
+void Set_Direction(uint8_t flag);
 void turn(float degrees);
 uint8_t if_ready();
 void track();

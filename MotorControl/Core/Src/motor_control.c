@@ -4,7 +4,8 @@
 # include "motor_control.h"
 # include "gpio.h"
 # include "tim.h"
-
+#include "stdlib.h"
+#include "math.h"
 /* USER CODE BEGIN ET */
 
 
@@ -63,6 +64,20 @@ void PID_Init(PID_Controller *pid, float Kp, float Ki, float Kd, float Ts,float 
     pid->max_integral = pid->max_output * 0.5f; // 积分限幅为输出的50%
 	  pid->prev_d=0.0f;
 }
+void Set_Direction(uint8_t flag){
+	if(flag==1){
+		HAL_GPIO_WritePin(AIN1_GPIO_Port,AIN1_Pin,GPIO_PIN_SET);
+		HAL_GPIO_WritePin(AIN2_GPIO_Port,AIN2_Pin,GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(BIN1_GPIO_Port,BIN1_Pin,GPIO_PIN_SET);
+		HAL_GPIO_WritePin(BIN2_GPIO_Port,BIN2_Pin,GPIO_PIN_RESET);
+	}
+	if(flag==0){
+		HAL_GPIO_WritePin(AIN1_GPIO_Port,AIN1_Pin,GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(AIN2_GPIO_Port,AIN2_Pin,GPIO_PIN_SET);
+		HAL_GPIO_WritePin(BIN1_GPIO_Port,BIN1_Pin,GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(BIN2_GPIO_Port,BIN2_Pin,GPIO_PIN_SET);
+	}
+}
 /* PID计算（带抗饱和和滤波）-----------------------------------------*/
 float PID_Compute(PID_Controller *pid, float setpoint, float measurement) {
     // 计算误差
@@ -85,13 +100,20 @@ float PID_Compute(PID_Controller *pid, float setpoint, float measurement) {
     
     // 计算输出
     float output = P + I + D;
-    
+    if(output<0.0){
+			
+			output=-output;
+			Set_Direction(0);
+		}
+		else{
+			Set_Direction(1);
+		}
     // 输出限幅
     if(output > pid->max_output) output = pid->max_output;
-    else if(output < 0.0f) output = 0.0f;
     
     return output;
 }
+
 
 void turn(float degrees){
     float pwm1 =  0 ;
@@ -389,17 +411,21 @@ void road_plan(){
 /*路线规划-------------------------------------------------*/
 void motor_control_in_TIM1(){
 	 // 读取当前编码器计数值
-		if((TIM3->CR1 & TIM_CR1_DIR)&&(TIM2->CR1 & TIM_CR1_DIR)){
-			current_total[0]-=(65535-TIM3->CNT);
-		  TIM3->CNT=65535;
-			current_total[1]-=(65535-TIM2->CNT);
+		if(TIM2->CR1&TIM_CR1_DIR){
+			current_total[0]-=(65535-TIM2->CNT);
 		  TIM2->CNT=65535;
 		}
 		else{
-		  current_total[0]+=TIM3->CNT;
-			TIM3->CNT=0;
-			current_total[1]+=TIM2->CNT;
+		  current_total[0]+=TIM2->CNT;
 			TIM2->CNT=0;
+		}
+		if(TIM3->CR1&TIM_CR1_DIR){
+			current_total[1]-=(65535-TIM3->CNT);
+		  TIM3->CNT=65535;
+		}
+		else{
+		  current_total[1]+=TIM3->CNT;
+			TIM3->CNT=0;
 		}
 	// 计算增量（处理溢出）
     int32_t delta_left = current_total[0]-pre_total[0];
@@ -433,18 +459,18 @@ void motor_control_in_TIM1(){
 			sensor_time=0;
 			un_sensor_time++;
 		}
-		road_plan();
+		//road_plan();
 		// PID计算
 		if(stop_flag==1){
 			pwm_left=0;
 			pwm_right=0;
 		}
-	  else if(turning_flag==0){
+	  else /*if(turning_flag==0)*/{
       pwm_left = PID_Compute(&left_motor_pid, (target_rpm[0]-correct[0]), rpm[0]);
 		  pwm_right = PID_Compute(&right_motor_pid, (target_rpm[1]+correct[1]), rpm[1]);
 		}
 		// 更新PWM输出
-    __HAL_TIM_SET_COMPARE(&htim11, TIM_CHANNEL_1, (uint32_t)pwm_left);
+    __HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, (uint32_t)pwm_left);
 		__HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, (uint32_t)pwm_right);
 		pre_rpm[0]=rpm[0];
 		pre_rpm[1]=rpm[1];
