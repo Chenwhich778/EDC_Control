@@ -27,21 +27,28 @@ uint32_t un_sensor_time;
 PID_Controller left_motor_pid;     // PID控制器实例
 PID_Controller right_motor_pid;     // PID控制器实例
 PID_Controller angle_pid;
-PID_Correct correctl_pid;    //修正实例
-PID_Correct correctr_pid;    //修正实例
 float target_rpm[2];    // 目标转速 0为左轮B，1为右轮A
 uint32_t pwm_max = 1000;       // PWM最大值对应100%占空比
-
-float straight_error=0.0f;
-float pre_straight_error=0.0f;
 float correct[2]={0.0};
 float pre_correct[2]={0.0};
 uint8_t Direction[7]={0};
 uint8_t Pre_Direction[7]={0};
 
-uint8_t Number;//识别的数字
-uint8_t line_flag=0;//识别到停止线
+char openmv_state='0';
+char k210_state='1';
+uint8_t turning_flag=0;
+uint8_t switch_count=0;
+uint8_t unload=0;
+uint8_t load=0;
 
+// 左转控制变量
+uint8_t trigger_turn_left = 0;   // 按键触发标志（置1启动左转）
+int32_t initial_right_encoder = 0;        // 右轮初始编码器值
+int32_t target_pulse_right = 0;           // 右轮目标脉冲数
+float TURN_DISTANCE_CM = 27.5f;     // 右轮90度转动距离
+float accel_distance;  // 加速阶段脉冲数
+float decel_distance;  // 减速阶段脉冲数
+float cruise_distance; // 巡航阶段脉冲数
 /* USER CODE END ET */
 
 /* PID初始化 --------------------------------------------------------*/
@@ -86,50 +93,82 @@ float PID_Compute(PID_Controller *pid, float setpoint, float measurement) {
     return output;
 }
 
-/* correct初始化 --------------------------------------------------------*/
-void PIDC_Init(PID_Correct *pid, float Kp, float Ki, float Kd, float Ts) {
-    pid->Kp = Kp;
-    pid->Ki = Ki;
-    pid->Kd = Kd;
-    pid->Ts = Ts;
-    pid->integral = 0.0f;
-    pid->max_output = 200.0f;
-    pid->max_integral = pid->max_output * 0.5f; // 积分限幅为输出的50%
-	  pid->prev_d=0.0f;
+void turn(float degrees){
+    float pwm1 =  0 ;
+    float pwm2 =  0 ;
+    if ( degrees == 180.0) TURN_DISTANCE_CM = 27.5 * 2;
+    
+    if (trigger_turn_left) {
+        // 1 初始化左转参数（仅首次触发时执行）
+        if (target_pulse_right == 0) {
+            // 停止左轮
+            pwm1 = 0 ;
+            
+            // 计算右轮目标脉冲数（轮半径为3.4cm）
+            float wheel_circumference = 2 * 3.1416f * 3.4f;
+            float revolutions = TURN_DISTANCE_CM / wheel_circumference;
+            target_pulse_right = (int32_t)(revolutions * 1500);
+            
+            // 记录初始编码器值
+                    if (degrees == -90.0 ) initial_right_encoder = current_total[0];
+              else initial_right_encoder = current_total[1];
+            
+            
+            // 启动右轮
+            pwm2 = 300.0f; // 右轮目标转速（RPM）
+                    
+                    // 初始化S曲线参数
+            accel_distance = target_pulse_right * 0.5f;  // 前20%加速
+            decel_distance = target_pulse_right * 0.5f; // 后20%减速
+            cruise_distance = target_pulse_right * 0.2f; // 中间巡航
+        }
+             int32_t delta_pulse = 0 ;
+         if (degrees == -90.0 ) delta_pulse = abs(current_total[0] - initial_right_encoder);
+             else  delta_pulse = abs(current_total[1] - initial_right_encoder);
+                
+                // S曲线速度控制
+        if (delta_pulse < accel_distance) {
+            // 加速阶段：使用余弦曲线加速
+            float progress = (float)delta_pulse / accel_distance;
+            pwm2 = 500.0f * (0.5f - 0.5f * cosf(progress * M_PI));
+                      // 确保最小PWM值
+            if (pwm2 < 200.0f) pwm2 = 200.0f;
+                    
+        } 
+        else if (delta_pulse > (accel_distance + cruise_distance)) {
+            // 减速阶段：使用余弦曲线减速
+            float progress = (float)(delta_pulse - (accel_distance + cruise_distance)) / decel_distance;
+            pwm2 = 500.0f * (0.5f + 0.5f * cosf(progress * M_PI));
+           // 确保最小PWM值
+            if (pwm2 < 100.0f) pwm2 = 100.0f;
+        }
+        else {
+            // 巡航阶段：保持最大速度
+            pwm2 = 500.0f;
+        }
+                
+        if (delta_pulse >= target_pulse_right) {
+            // 停止右轮
+            pwm2 = 0 ;
+            // 重置状态
+            target_pulse_right = 0;
+            trigger_turn_left = 0;
+					  turning_flag=0;
+        }
+    }
+    
+        if (degrees == 90.0 || degrees == 180.0)
+        {
+            pwm_left = pwm1 ;
+            pwm_right = pwm2 ;
+        }
+        if (degrees == - 90.0)
+        {
+            pwm_left = pwm2 ;
+            pwm_right = pwm1 ;
+        }
+        
 }
-/* correct计算（带抗饱和和滤波）-----------------------------------------*/
-float PIDC_Compute(PID_Correct *pid, float rpm[],float pre_rpm[]) {
-	  if((rpm[0]+pre_rpm[0]-2*target_rpm[0])<-2.0f||(rpm[0]+pre_rpm[0]-2*target_rpm[0])>2.0f)
-			 return 0;
-    //计算correct
-		straight_error=(rpm[0]+pre_rpm[0])/2*pid->Ts-(rpm[1]+pre_rpm[1])/2*pid->Ts;
-    
-    // 比例项
-    float P = pid->Kp * straight_error;
-    
-    // 积分项（带限幅）
-    pid->integral += straight_error * pid->Ts;
-    if(pid->integral > pid->max_integral) pid->integral = pid->max_integral;
-    else if(pid->integral < -pid->max_integral) pid->integral = -pid->max_integral;
-    float I = pid->Ki * pid->integral;
-    
-    // 微分项（带一阶低通滤波）
-    float D = pid->Kd * (straight_error - pre_straight_error) / pid->Ts;
-    D = 0.2f * D + 0.8f * pid->prev_d; // 低通滤波系数
-    pid->prev_d = D;
-    pre_straight_error = straight_error;
-    
-    // 计算输出
-    float output = P + I + D;
-    
-    // 输出限幅
-    if(output > pid->max_output) output = pid->max_output;
-    else if(output < 0.0f) output = 0.0f;
-    
-    return output;
-}
-
-
 void read_Direction_flag(uint8_t Direction[],uint8_t Pre_Direction[],uint8_t n){
 	for(int i=0;i<n;i++)
 		  Pre_Direction[i]=Direction[i];
@@ -162,9 +201,171 @@ void read_Direction_flag(uint8_t Direction[],uint8_t Pre_Direction[],uint8_t n){
 		else
 			Direction[0]=0;
 }
-/*路线规划------------------------------------------------*/
-void road_plan(){
+
+//判断是否开始跑
+uint8_t if_ready(){
+	static uint8_t ready=0;
+	if(k210_state>=1&&k210_state<=8&&unload==0&&load==0)
+		ready=1;
+	if(openmv_state=='5'&&ready==1&&turning_flag==0){
+		if(switch_count>0){
+			ready=0;
+			k210_state='0';
+			openmv_state='0';
+			if(switch_count>1){
+				if(switch_count%2==0)
+					unload=1;
+				else
+					load=1;
+			}
+		}
+		switch_count++;
+	}
+	return ready;
+}
+
+//寻红线
+//1直行，2左转，3右转，4识别到十字
+void track(){
+	switch(openmv_state){
+		case '1':{
+			correct[0]=0.0;
+			correct[1]=0.0;
+			break;
+		}
+		case '2':{
+			correct[0]=0.1*target_rpm[0];
+			correct[1]=0.1*target_rpm[1];
+			break;
+		}
+		case '3':{
+			correct[0]=-0.1*target_rpm[0];
+			correct[1]=-0.1*target_rpm[1];
+			break;
+		}
+		ERROR:{
+			correct[0]=0.0;
+			correct[1]=0.0;
+			break;
+		}
+	}
+}
 	
+
+/*路线规划------------------------------------------------*/
+//转弯后记得把turning_flag置零(1表示正在左转，2表示正在右转，3表示正在掉头）
+void road_plan(){
+	if(if_ready()==1){
+		switch(k210_state){
+			case '1':{
+				if(switch_count==0||switch_count==1){//第一次经过虚线不停留
+					if(openmv_state=='5'&&switch_count>0){
+						stop_flag=1;
+						break;
+					}
+					if(openmv_state=='4')
+						turning_flag=1;
+					if(turning_flag==0)
+						track();
+					else if(turning_flag==1){
+						turn(90.0);
+					}
+				}
+				else if(switch_count==2){//第二次识别虚线停在1号病房，ready后启动
+					if(openmv_state=='0')
+						turning_flag=3;
+					if(turning_flag==3){
+						turn(180.0);
+					}
+					else{
+						if(openmv_state=='5'){
+							stop_flag=1;
+							break;
+						}
+						if(openmv_state=='4')
+							turning_flag=2;
+						if(turning_flag==0)
+							track();
+						else if(turning_flag==2){
+							turn(-90.0);
+						}
+					}
+				}
+				break;
+			}
+			case '2':{
+				if(switch_count==3){//第一次经过虚线不停留
+					if(openmv_state=='0')
+						turning_flag=3;
+					if(turning_flag==3){
+						turn(180.0);
+					}
+					else{
+						if(openmv_state=='5'){
+							stop_flag=1;
+							break;
+						}
+						if(openmv_state=='4')
+							turning_flag=2;
+						if(turning_flag==0)
+							track();
+						else if(turning_flag==1){
+							turn(-90.0);
+						}
+				  }
+				}
+				else if(switch_count==4){//第二次识别虚线停在1号病房，ready后启动
+					if(openmv_state=='0')
+						turning_flag=3;
+					if(turning_flag==3){
+						turn(180.0);
+					}
+					else{
+						if(openmv_state=='5'){
+							stop_flag=1;
+							break;
+						}
+						if(openmv_state=='4')
+							turning_flag=1;
+						if(turning_flag==0)
+							track();
+						else if(turning_flag==2){
+							turn(90.0);
+						}
+					}
+				}
+				break;
+			}
+			case 3:{
+				
+				break;
+			}
+			case 4:{
+				
+				break;
+			}
+			case 5:{
+				
+				break;
+			}
+			case 6:{
+				
+				break;
+			}
+			case 7:{
+				
+				break;
+			}
+			case 8:{
+				
+				break;
+			}
+			ERROR :{
+				
+				break;
+			}
+		}
+	}
 
 
 
@@ -232,15 +433,15 @@ void motor_control_in_TIM1(){
 			sensor_time=0;
 			un_sensor_time++;
 		}
-		  
+		road_plan();
 		// PID计算
-	  if(stop_flag==0){
-      pwm_left = PID_Compute(&left_motor_pid, (target_rpm[0]-correct[0]), rpm[0]);
-		  pwm_right = PID_Compute(&right_motor_pid, (target_rpm[1]+correct[1]), rpm[1]);
-		}
-		else{
+		if(stop_flag==1){
 			pwm_left=0;
 			pwm_right=0;
+		}
+	  else if(turning_flag==0){
+      pwm_left = PID_Compute(&left_motor_pid, (target_rpm[0]-correct[0]), rpm[0]);
+		  pwm_right = PID_Compute(&right_motor_pid, (target_rpm[1]+correct[1]), rpm[1]);
 		}
 		// 更新PWM输出
     __HAL_TIM_SET_COMPARE(&htim11, TIM_CHANNEL_1, (uint32_t)pwm_left);

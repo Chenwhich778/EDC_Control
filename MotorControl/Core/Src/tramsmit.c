@@ -4,12 +4,14 @@
 #include "motor_control.h"
 #include "string.h"
 #include "stdlib.h"
+#include "i2c.h"
 
 char uart_buffer[50];      // UART发送缓冲区
 volatile char rx_buffer[RX_BUFFER_SIZE];
 volatile uint8_t rx_index = 0;
 volatile uint8_t rx_ready = 0;
 char rx_char;
+char received_byte;
 
 void Send_MultiData_FireWater(float speed_rpm, float pidsetpoint,  float speed_rpm_,  float pidsetpoint_) {
     char buffer[64];
@@ -61,4 +63,21 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         // 重新启动接收中断
          HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);
     }
+		else if(huart->Instance == USART6){
+			openmv_state=(uint8_t) received_byte;
+			HAL_UART_Receive_IT(&huart6, (uint8_t*)&received_byte, 1);  //启动 USART 接收中断
+		}
+}
+
+// I2C 从机接收回调函数
+void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode) {
+    if (TransferDirection == I2C_DIRECTION_RECEIVE) { // 主机要写数据到从机
+			  openmv_state=received_byte;
+        HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t*)&received_byte, 1); // 接收 1 字节
+    }
+}
+
+// 数据接收完成回调
+void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c) {
+    openmv_state = received_byte; // 直接赋值 uint8_t
 }

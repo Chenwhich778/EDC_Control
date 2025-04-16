@@ -80,7 +80,6 @@ uint32_t beep_time=0;
 
 
 
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -125,8 +124,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         last_key_time = HAL_GetTick();
         correct[0] = 0;
         correct[1] = 0;
-        straight_error = 0;
-        pre_straight_error = 0;
         if (GPIO_Pin == Key0_Pin) {
             mode = 1;
 					  stop_flag=0;
@@ -142,6 +139,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 					  stop_flag=0;
 					  origine_angle=angle;
         }
+				else if(GPIO_Pin==Unload_Pin){
+					unload=0;
+				}
+				else if(GPIO_Pin==Load_Pin){
+					load=0;
+				}
     }
 }
 
@@ -185,6 +188,7 @@ int main(void)
   MX_TIM2_Init();
   MX_I2C1_Init();
   MX_TIM5_Init();
+  MX_USART6_UART_Init();
   /* USER CODE BEGIN 2 */
 	MPU6050_Init(&hi2c1);
 	
@@ -197,9 +201,6 @@ int main(void)
 	PID_Init(&right_motor_pid, 10.0f, 40.0, 0.01f, SAMPLE_TIME,pwm_max); // 
 	
 	PID_Init(&angle_pid,6.0f,0.6f,0.01f,SAMPLE_TIME,target_rpm[0]);   //角度pid
-	
-	PIDC_Init(&correctl_pid, 40.0f,20.0f,2.0f,SAMPLE_TIME);//待会删了
-	PIDC_Init(&correctr_pid, 40.0f,20.0f,2.0f,SAMPLE_TIME);
 	
 	linear=wheel_radius*2*3.1415926/60;
 	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
@@ -227,6 +228,7 @@ int main(void)
 	//USART
 	
   HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);  //启动 USART 接收中断
+	HAL_UART_Receive_IT(&huart6, (uint8_t*)&received_byte, 1);  //启动 USART 接收中断
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -236,12 +238,7 @@ int main(void)
 		OLED_ShowFloatNum(31,16,rpm[0],3,1,OLED_6X8);
 		OLED_ShowFloatNum(31,24,rpm[1],3,1,OLED_6X8);
 		//MPU6050_Read_All(&hi2c1, &MPU6050);
-		float angle_show=angle;
-		while(angle_show>=360.0)
-			angle_show-=360.0;
-		while(angle_show<=-360.0)
-			angle_show+=360.0;
-		OLED_ShowFloatNum(43,40,angle_show,3,2,OLED_6X8);
+		OLED_ShowChar(43,40,openmv_state,OLED_6X8);
 		duty[0]=pwm_left/10;
 		OLED_ShowFloatNum(43,0,duty[0],2,4,OLED_6X8);
 		duty[1]=pwm_right/10;
@@ -258,7 +255,6 @@ int main(void)
 			alarm_enable=0;
 			beep_time=0;
 		}
-		
 		HAL_Delay(20);
 		/*if (rx_ready) {
             Parse_Data();

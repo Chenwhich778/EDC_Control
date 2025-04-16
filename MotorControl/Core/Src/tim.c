@@ -461,12 +461,12 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
     /**TIM9 GPIO Configuration
     PE6     ------> TIM9_CH2
     */
-    GPIO_InitStruct.Pin = PWMA_Pin;
+    GPIO_InitStruct.Pin = PWMB_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF3_TIM9;
-    HAL_GPIO_Init(PWMA_GPIO_Port, &GPIO_InitStruct);
+    HAL_GPIO_Init(PWMB_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN TIM9_MspPostInit 1 */
 
@@ -482,12 +482,12 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
     /**TIM11 GPIO Configuration
     PB9     ------> TIM11_CH1
     */
-    GPIO_InitStruct.Pin = PWMB_Pin;
+    GPIO_InitStruct.Pin = PWMA_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF3_TIM11;
-    HAL_GPIO_Init(PWMB_GPIO_Port, &GPIO_InitStruct);
+    HAL_GPIO_Init(PWMA_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN TIM11_MspPostInit 1 */
 
