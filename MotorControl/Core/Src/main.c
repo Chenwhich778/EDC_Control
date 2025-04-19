@@ -57,9 +57,6 @@ uint32_t last_key_time = 0;
 
 
 
-uint8_t mode=0;
-
-
 float x=0.0;
 float y=0.0;
 float wheel_radius=3.2;    //单位厘米
@@ -102,7 +99,7 @@ void Distance_x_y(){
 
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-  if (htim->Instance == TIM1) {
+  if (htim->Instance == TIM1) {  //T=0.01s
     
 		//计算角度
 		  // 读取MPU6050数据
@@ -117,6 +114,48 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	else if(htim->Instance==TIM3){
 		current_total[1] +=(TIM3->CR1 & TIM_CR1_DIR) ? -65536 : 65536;
   }
+	else if(htim->Instance==TIM4){  //T=0.1s
+		OLED_ShowFloatNum(31,16,rpm[0],3,1,OLED_6X8);
+		OLED_ShowFloatNum(31,24,rpm[1],3,1,OLED_6X8);
+		//MPU6050_Read_All(&hi2c1, &MPU6050);
+		OLED_ShowChar(37,32,k210_state,OLED_6X8);
+		OLED_ShowChar(91,32,openmv_state,OLED_6X8);
+		duty[0]=pwm_left/10;
+		OLED_ShowFloatNum(43,0,duty[0],2,4,OLED_6X8);
+		duty[1]=pwm_right/10;
+		OLED_ShowFloatNum(43,8,duty[1],2,4,OLED_6X8);
+		OLED_ShowNum(37,40,mode,1,OLED_6X8);
+		OLED_ShowNum(37,48,turning_flag,1,OLED_6X8);
+		OLED_ShowNum(55,40,switch_count,1,OLED_6X8);
+		OLED_Update();
+		if(alarm_enable==1){
+			__HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, 500);
+			beep_time++;
+		}
+		if(beep_time>=20){
+			__HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, 0);
+			alarm_enable=0;
+			beep_time=0;
+		}
+		/*if (rx_ready) {
+            Parse_Data();
+            rx_ready = 0;
+        }
+		Send_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);*/
+		
+     //格式化MPU6050数据并发送
+    /*sprintf(uart_buffer, "Accel: %.2f, %.2f, %.2f; Gyro: %.2f, %.2f, %.2f\r\n", 
+            MPU6050.Ax, MPU6050.Ay, MPU6050.Az, 
+            MPU6050.Gx, MPU6050.Gy, MPU6050.Gz);
+    HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
+    
+    sprintf(uart_buffer, "Yaw: %.2f\r\n", angle);*/
+    //HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
+		/*__HAL_TIM_SET_COMPARE(&htim11, TIM_CHANNEL_1, 100);
+		HAL_Delay(10);
+		__HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, 100);
+		HAL_Delay(10);*/
+	}
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
@@ -126,26 +165,22 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         correct[1] = 0;
         if (GPIO_Pin == Key0_Pin) {
             mode = 1;
-					  stop_flag=0;
         } else if (GPIO_Pin == Key1_Pin) {
             mode = 2;
-					  stop_flag=0;
         } else if (GPIO_Pin == Key2_Pin) {
             mode = 3;
-					  stop_flag=0;
-					  origine_angle=angle;
         } else if (GPIO_Pin == Key3_Pin) {
             mode = 4;
-					  stop_flag=0;
-					  origine_angle=angle;
         }
 				else if(GPIO_Pin==Unload_Pin){
 					unload=0;
 					stop_flag=0;
+					mode=5;
 				}
 				else if(GPIO_Pin==Load_Pin){
 					load=0;
 					stop_flag=0;
+					mode=4;
 				}
     }
 }
@@ -191,6 +226,7 @@ int main(void)
   MX_TIM5_Init();
   MX_USART6_UART_Init();
   MX_TIM8_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 	MPU6050_Init(&hi2c1);
 	
@@ -199,8 +235,8 @@ int main(void)
   }*/
 	target_rpm[0]=100.0f;
 	target_rpm[1]=100.0f;
-  PID_Init(&left_motor_pid, 10.0f, 40.0f, 0.01f, SAMPLE_TIME,pwm_max); //    6.0f, 0.6f, 0.1f, SAMPLE_TIME
-	PID_Init(&right_motor_pid, 10.0f, 40.0, 0.01f, SAMPLE_TIME,pwm_max); // 
+  PID_Init(&left_motor_pid, 6.0f, 18.0f, 0.01f, SAMPLE_TIME,pwm_max); //    6.0f, 0.6f, 0.1f, SAMPLE_TIME
+	PID_Init(&right_motor_pid, 6.0f, 18.0, 0.01f, SAMPLE_TIME,pwm_max); // 
 	
 	PID_Init(&angle_pid,6.0f,0.6f,0.01f,SAMPLE_TIME,target_rpm[0]);   //角度pid
 	
@@ -222,59 +258,22 @@ int main(void)
 	OLED_ShowString(1,24,"RRPM:",OLED_6X8);
 	OLED_ShowFloatNum(31,16,rpm[0],3,1,OLED_6X8);
 	OLED_ShowFloatNum(31,24,rpm[1],3,1,OLED_6X8);
-	OLED_ShowString(1,32,"MAX:350rpm",OLED_6X8);
-	OLED_ShowString(1,40,"Angle:",OLED_6X8);
-	OLED_ShowString(1,48,"MODE:",OLED_6X8);
+	OLED_ShowString(1,32,"K210:",OLED_6X8);
+	OLED_ShowString(49,32,"Openm:",OLED_6X8);
+	OLED_ShowString(1,40,"MODE:",OLED_6X8);
+	OLED_ShowString(1,48,"Turn:",OLED_6X8);
 	
 	OLED_Update();
 	//USART
   HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);  //启动 USART 接收中断
 	HAL_UART_Receive_IT(&huart6, (uint8_t*)&received_byte, 1);  //启动 USART 接收中断
+	TIM2->CNT=65535;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		OLED_ShowFloatNum(31,16,rpm[0],3,1,OLED_6X8);
-		OLED_ShowFloatNum(31,24,rpm[1],3,1,OLED_6X8);
-		//MPU6050_Read_All(&hi2c1, &MPU6050);
-		OLED_ShowChar(43,40,openmv_state,OLED_6X8);
-		duty[0]=pwm_left/10;
-		OLED_ShowFloatNum(43,0,duty[0],2,4,OLED_6X8);
-		duty[1]=pwm_right/10;
-		OLED_ShowFloatNum(43,8,duty[1],2,4,OLED_6X8);
-		OLED_ShowNum(37,48,mode,1,OLED_6X8);
-		OLED_ShowFloatNum(1,54,target_angle,2,1,OLED_6X8);
-		OLED_Update();
-		if(alarm_enable==1){
-			__HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, 500);
-			beep_time++;
-		}
-		if(beep_time>=20){
-			__HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, 0);
-			alarm_enable=0;
-			beep_time=0;
-		}
-		HAL_Delay(20);
-		if (rx_ready) {
-            Parse_Data();
-            rx_ready = 0;
-        }
-		Send_MultiData_FireWater(rpm[0],target_rpm[0],rpm[1],target_rpm[1]);
-		
-     //格式化MPU6050数据并发送
-    /*sprintf(uart_buffer, "Accel: %.2f, %.2f, %.2f; Gyro: %.2f, %.2f, %.2f\r\n", 
-            MPU6050.Ax, MPU6050.Ay, MPU6050.Az, 
-            MPU6050.Gx, MPU6050.Gy, MPU6050.Gz);
-    HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
-    
-    sprintf(uart_buffer, "Yaw: %.2f\r\n", angle);*/
-    //HAL_UART_Transmit(&huart1, (uint8_t*)uart_buffer, strlen(uart_buffer), 100);
-		/*__HAL_TIM_SET_COMPARE(&htim11, TIM_CHANNEL_1, 100);
-		HAL_Delay(10);
-		__HAL_TIM_SET_COMPARE(&htim9, TIM_CHANNEL_2, 100);
-		HAL_Delay(10);*/
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

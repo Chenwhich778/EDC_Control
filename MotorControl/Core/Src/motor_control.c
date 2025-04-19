@@ -8,7 +8,7 @@
 #include "math.h"
 /* USER CODE BEGIN ET */
 
-
+uint8_t mode=0;
 
 float duty[2];//--------------------------转速相关*/
 int32_t current_total[2];
@@ -36,14 +36,17 @@ uint8_t Direction[7]={0};
 uint8_t Pre_Direction[7]={0};
 
 char openmv_state='0';
-char k210_state='1';
+char pre_openmv_state='0';
+char k210_state='0';
+char k210_resrved_state='1';
 uint8_t turning_flag=0;
+uint8_t turning_tmp=0;
 uint8_t switch_count=0;
 uint8_t unload=0;
-uint8_t load=0;
+uint8_t load=1;
+
 
 // 左转控制变量
-uint8_t trigger_turn_left = 0;   // 按键触发标志（置1启动左转）
 int32_t initial_right_encoder = 0;        // 右轮初始编码器值
 int32_t target_pulse_right = 0;           // 右轮目标脉冲数
 float TURN_DISTANCE_CM = 27.5f;     // 右轮90度转动距离
@@ -64,20 +67,28 @@ void PID_Init(PID_Controller *pid, float Kp, float Ki, float Kd, float Ts,float 
     pid->max_integral = pid->max_output * 0.5f; // 积分限幅为输出的50%
 	  pid->prev_d=0.0f;
 }
-void Set_Direction(uint8_t flag){
+void Set_Left_Direction(uint8_t flag){
 	if(flag==1){
 		HAL_GPIO_WritePin(AIN1_GPIO_Port,AIN1_Pin,GPIO_PIN_SET);
 		HAL_GPIO_WritePin(AIN2_GPIO_Port,AIN2_Pin,GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(BIN1_GPIO_Port,BIN1_Pin,GPIO_PIN_SET);
-		HAL_GPIO_WritePin(BIN2_GPIO_Port,BIN2_Pin,GPIO_PIN_RESET);
 	}
 	if(flag==0){
 		HAL_GPIO_WritePin(AIN1_GPIO_Port,AIN1_Pin,GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(AIN2_GPIO_Port,AIN2_Pin,GPIO_PIN_SET);
+	}
+}
+
+void Set_Right_Direction(uint8_t flag){
+	if(flag==1){
+		HAL_GPIO_WritePin(BIN1_GPIO_Port,BIN1_Pin,GPIO_PIN_SET);
+		HAL_GPIO_WritePin(BIN2_GPIO_Port,BIN2_Pin,GPIO_PIN_RESET);
+	}
+	if(flag==0){
 		HAL_GPIO_WritePin(BIN1_GPIO_Port,BIN1_Pin,GPIO_PIN_RESET);
 		HAL_GPIO_WritePin(BIN2_GPIO_Port,BIN2_Pin,GPIO_PIN_SET);
 	}
 }
+
 /* PID计算（带抗饱和和滤波）-----------------------------------------*/
 float PID_Compute(PID_Controller *pid, float setpoint, float measurement) {
     // 计算误差
@@ -103,10 +114,16 @@ float PID_Compute(PID_Controller *pid, float setpoint, float measurement) {
     if(output<0.0){
 			
 			output=-output;
-			Set_Direction(0);
+			if(pid==&left_motor_pid)
+			  Set_Left_Direction(0);
+			else
+				Set_Right_Direction(0);
 		}
 		else{
-			Set_Direction(1);
+			if(pid==&left_motor_pid)
+			  Set_Left_Direction(1);
+			else
+				Set_Right_Direction(1);
 		}
     // 输出限幅
     if(output > pid->max_output) output = pid->max_output;
@@ -120,7 +137,7 @@ void turn(float degrees){
     float pwm2 =  0 ;
     if ( degrees == 180.0) TURN_DISTANCE_CM = 27.5 * 2;
     
-    if (trigger_turn_left) {
+    if (turning_flag!=0) {
         // 1 初始化左转参数（仅首次触发时执行）
         if (target_pulse_right == 0) {
             // 停止左轮
@@ -174,7 +191,6 @@ void turn(float degrees){
             pwm2 = 0 ;
             // 重置状态
             target_pulse_right = 0;
-            trigger_turn_left = 0;
 					  turning_flag=0;
         }
     }
@@ -191,7 +207,7 @@ void turn(float degrees){
         }
         
 }
-void read_Direction_flag(uint8_t Direction[],uint8_t Pre_Direction[],uint8_t n){
+/*void read_Direction_flag(uint8_t Direction[],uint8_t Pre_Direction[],uint8_t n){
 	for(int i=0;i<n;i++)
 		  Pre_Direction[i]=Direction[i];
 		if(HAL_GPIO_ReadPin(Direction_6_GPIO_Port,Direction_6_Pin)==GPIO_PIN_SET)//D_6
@@ -222,30 +238,46 @@ void read_Direction_flag(uint8_t Direction[],uint8_t Pre_Direction[],uint8_t n){
 			Direction[0]=1;
 		else
 			Direction[0]=0;
-}
+}*/
 
 //判断是否开始跑
 uint8_t if_ready(){
 	static uint8_t ready=0;
-	if(k210_state>=1&&k210_state<=8&&unload==0&&load==0)
+	if(k210_state>='1'&&k210_state<='8'&&unload==0&&load==0){
 		ready=1;
-	if(openmv_state=='5'&&ready==1&&turning_flag==0){
-		if(switch_count>0){
-			ready=0;
-			k210_state='0';
-			openmv_state='0';
-			if(switch_count>1){
-				if(switch_count%2==0)
-					unload=1;
-				else
-					load=1;
-			}
-		}
-		switch_count++;
+		stop_flag=0;
 	}
+	if(openmv_state=='5'&&pre_openmv_state!='5'&&ready==1){
+		switch_count++;
+		if(switch_count==2){
+				ready=0;
+				k210_state='0';
+				openmv_state='0';
+				turning_flag=3;
+				unload=1;
+			  stop_flag=1;
+		}
+		else if(switch_count==4){
+			if(turning_flag==0){
+				ready=0;
+				k210_state='0';
+				openmv_state='0';
+				unload=1;
+				stop_flag=1;
+			}
+	  }
+  }
 	return ready;
 }
 
+//识别到十字后还要往前走一段
+float get_more(uint8_t turning_tmp){
+	static float more=0.0;
+	if(turning_tmp==1)
+	  more+=(rpm[0]+rpm[1]);
+	else more=0;
+	return more*SAMPLE_TIME*M_PI*3.2;
+}
 //寻红线
 //1直行，2左转，3右转，4识别到十字
 void track(){
@@ -256,13 +288,13 @@ void track(){
 			break;
 		}
 		case '2':{
-			correct[0]=0.1*target_rpm[0];
-			correct[1]=0.1*target_rpm[1];
+			correct[0]=0.2*target_rpm[0];
+			correct[1]=0.2*target_rpm[1];
 			break;
 		}
 		case '3':{
-			correct[0]=-0.1*target_rpm[0];
-			correct[1]=-0.1*target_rpm[1];
+			correct[0]=-0.2*target_rpm[0];
+			correct[1]=-0.2*target_rpm[1];
 			break;
 		}
 		ERROR:{
@@ -271,6 +303,7 @@ void track(){
 			break;
 		}
 	}
+	
 }
 	
 
@@ -278,107 +311,70 @@ void track(){
 //转弯后记得把turning_flag置零(1表示正在左转，2表示正在右转，3表示正在掉头）
 void road_plan(){
 	if(if_ready()==1){
-		switch(k210_state){
-			case '1':{
+		switch(mode){
+			case 1:{
 				if(switch_count==0||switch_count==1){//第一次经过虚线不停留
-					if(openmv_state=='5'&&switch_count>0){
-						stop_flag=1;
-						break;
+					if(openmv_state=='4'){
+						turning_tmp=1;
 					}
-					if(openmv_state=='4')
-						turning_flag=1;
+					if(turning_tmp==1&&get_more(turning_tmp)>=50.0){
+						if(k210_resrved_state==1)
+							turning_flag=1;
+						else if(k210_resrved_state==2)
+						  turning_flag=2;
+						turning_tmp=0;
+					}
 					if(turning_flag==0)
 						track();
-					else if(turning_flag==1){
-						turn(90.0);
+					else {
+						if(turning_flag==1)
+						  turn(90.0);
+						else if(turning_flag==2)
+							turn(-90.0);
 					}
 				}
 				else if(switch_count==2){//第二次识别虚线停在1号病房，ready后启动
-					if(openmv_state=='0')
-						turning_flag=3;
 					if(turning_flag==3){
 						turn(180.0);
 					}
 					else{
-						if(openmv_state=='5'){
-							stop_flag=1;
-							break;
-						}
 						if(openmv_state=='4')
-							turning_flag=2;
+							turning_tmp=1;
+						if(turning_tmp==1&&get_more(turning_tmp)>=50.0){
+							if(k210_resrved_state==1)
+							  turning_flag=2;
+						  else if(k210_resrved_state==2)
+						    turning_flag=1;
+						  turning_tmp=0;
+					  }
 						if(turning_flag==0)
 							track();
-						else if(turning_flag==2){
-							turn(-90.0);
+						else {
+							if(turning_flag==1)
+						    turn(90.0);
+						  else if(turning_flag==2)
+							  turn(-90.0);
 						}
+					}
+				}
+				else if(switch_count==3){
+					if(turning_flag==3)
+						turn(180.0);
+					else {
+						track();
+						if(get_more(1)>=80.0){
+						  turning_flag=3;
+						  get_more(0);
+					  }
 					}
 				}
 				break;
 			}
-			case '2':{
-				if(switch_count==3){//第一次经过虚线不停留
-					if(openmv_state=='0')
-						turning_flag=3;
-					if(turning_flag==3){
-						turn(180.0);
-					}
-					else{
-						if(openmv_state=='5'){
-							stop_flag=1;
-							break;
-						}
-						if(openmv_state=='4')
-							turning_flag=2;
-						if(turning_flag==0)
-							track();
-						else if(turning_flag==1){
-							turn(-90.0);
-						}
-				  }
-				}
-				else if(switch_count==4){//第二次识别虚线停在1号病房，ready后启动
-					if(openmv_state=='0')
-						turning_flag=3;
-					if(turning_flag==3){
-						turn(180.0);
-					}
-					else{
-						if(openmv_state=='5'){
-							stop_flag=1;
-							break;
-						}
-						if(openmv_state=='4')
-							turning_flag=1;
-						if(turning_flag==0)
-							track();
-						else if(turning_flag==2){
-							turn(90.0);
-						}
-					}
-				}
+			case 2:{
+				
 				break;
 			}
 			case 3:{
-				
-				break;
-			}
-			case 4:{
-				
-				break;
-			}
-			case 5:{
-				
-				break;
-			}
-			case 6:{
-				
-				break;
-			}
-			case 7:{
-				
-				break;
-			}
-			case 8:{
 				
 				break;
 			}
@@ -446,8 +442,8 @@ void motor_control_in_TIM1(){
 		pre_total[1] =current_total[1];
 		
     //读取灰度传感器
-		read_Direction_flag(Direction,Pre_Direction,7);
-		uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
+		//read_Direction_flag(Direction,Pre_Direction,7);
+		/*uint8_t current_state = Direction[0] | Direction[1] | Direction[2] | Direction[3] | Direction[4] | Direction[5] | Direction[6];
     uint8_t previous_state = Pre_Direction[0] | Pre_Direction[1] | Pre_Direction[2] | Pre_Direction[3] | Pre_Direction[4] | Pre_Direction[5] | Pre_Direction[6];
     if(current_state==1){
 			pre_sensor_time=sensor_time;
@@ -458,14 +454,14 @@ void motor_control_in_TIM1(){
 			pre_sensor_time=sensor_time;
 			sensor_time=0;
 			un_sensor_time++;
-		}
-		//road_plan();
+		}*/
+		road_plan();
 		// PID计算
 		if(stop_flag==1){
 			pwm_left=0;
 			pwm_right=0;
 		}
-	  else /*if(turning_flag==0)*/{
+	  else if(turning_flag==0){
       pwm_left = PID_Compute(&left_motor_pid, (target_rpm[0]-correct[0]), rpm[0]);
 		  pwm_right = PID_Compute(&right_motor_pid, (target_rpm[1]+correct[1]), rpm[1]);
 		}
