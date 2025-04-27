@@ -72,8 +72,7 @@ float x_delt=0.0;
 float y_direction=0.0;
 float y_delt=0.0;
 
-uint8_t alarm_enable=0;//alarm-------------------*/
-uint32_t beep_time=0;
+
 
 
 
@@ -118,7 +117,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		OLED_ShowFloatNum(31,16,rpm[0],3,1,OLED_6X8);
 		OLED_ShowFloatNum(31,24,rpm[1],3,1,OLED_6X8);
 		//MPU6050_Read_All(&hi2c1, &MPU6050);
-		OLED_ShowChar(37,32,k210_state,OLED_6X8);
+		OLED_ShowChar(37,32,k210_reserved_state,OLED_6X8);
 		OLED_ShowChar(91,32,openmv_state,OLED_6X8);
 		duty[0]=pwm_left/10;
 		OLED_ShowFloatNum(43,0,duty[0],2,4,OLED_6X8);
@@ -126,13 +125,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		OLED_ShowFloatNum(43,8,duty[1],2,4,OLED_6X8);
 		OLED_ShowNum(37,40,mode,1,OLED_6X8);
 		OLED_ShowNum(37,48,turning_flag,1,OLED_6X8);
+		OLED_ShowFloatNum(49,48,get_distance(),3,1,OLED_6X8);
 		OLED_ShowNum(55,40,switch_count,1,OLED_6X8);
 		OLED_Update();
 		if(alarm_enable==1){
 			__HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, 500);
 			beep_time++;
 		}
-		if(beep_time>=20){
+		if(beep_time>=5){
 			__HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, 0);
 			alarm_enable=0;
 			beep_time=0;
@@ -163,24 +163,31 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         last_key_time = HAL_GetTick();
         correct[0] = 0;
         correct[1] = 0;
-        if (GPIO_Pin == Key0_Pin) {
+        if (GPIO_Pin == Key1_Pin) {
             mode = 1;
-        } else if (GPIO_Pin == Key1_Pin) {
-            mode = 2;
+					  load=0;
+					  origin_count=current_total[0];
+					  alarm_enable=1;
         } else if (GPIO_Pin == Key2_Pin) {
-            mode = 3;
+            mode = 2;
+					  load=0;
+					  origin_count=current_total[0];
+					  alarm_enable=1;
         } else if (GPIO_Pin == Key3_Pin) {
-            mode = 4;
-        }
-				else if(GPIO_Pin==Unload_Pin){
+            mode = 3;
+					  load=0;
+					  origin_count=current_total[0];
+					  alarm_enable=1;
+				}
+				else if(GPIO_Pin==Key4_Pin){
 					unload=0;
 					stop_flag=0;
-					mode=5;
+					alarm_enable=1;
 				}
-				else if(GPIO_Pin==Load_Pin){
+				else if(GPIO_Pin==Key5_Pin){
 					load=0;
 					stop_flag=0;
-					mode=4;
+					alarm_enable=1;
 				}
     }
 }
@@ -227,6 +234,7 @@ int main(void)
   MX_USART6_UART_Init();
   MX_TIM8_Init();
   MX_TIM4_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 	MPU6050_Init(&hi2c1);
 	
@@ -235,8 +243,8 @@ int main(void)
   }*/
 	target_rpm[0]=100.0f;
 	target_rpm[1]=100.0f;
-  PID_Init(&left_motor_pid, 6.0f, 18.0f, 0.01f, SAMPLE_TIME,pwm_max); //    6.0f, 0.6f, 0.1f, SAMPLE_TIME
-	PID_Init(&right_motor_pid, 6.0f, 18.0, 0.01f, SAMPLE_TIME,pwm_max); // 
+  PID_Init(&left_motor_pid, 7.0f, 22.0f, 0.01f, SAMPLE_TIME,pwm_max); //    6.0f, 0.6f, 0.1f, SAMPLE_TIME
+	PID_Init(&right_motor_pid, 7.0f, 22.0, 0.01f, SAMPLE_TIME,pwm_max); // 
 	
 	PID_Init(&angle_pid,6.0f,0.6f,0.01f,SAMPLE_TIME,target_rpm[0]);   //角度pid
 	
@@ -244,6 +252,7 @@ int main(void)
 	HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
 	HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
 	HAL_TIM_Base_Start_IT(&htim1);
+	HAL_TIM_Base_Start_IT(&htim4);
 	HAL_TIM_PWM_Start(&htim8,TIM_CHANNEL_1);
 	HAL_TIM_PWM_Start(&htim9,TIM_CHANNEL_2);
 	HAL_TIM_PWM_Start(&htim5,TIM_CHANNEL_3);
@@ -265,9 +274,11 @@ int main(void)
 	
 	OLED_Update();
 	//USART
-  HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);  //启动 USART 接收中断
+  HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char1, 1);  //启动 USART 接收中断
+	HAL_UART_Receive_IT(&huart3, (uint8_t *)&rx_char3, 1);  //启动 USART 接收中断
 	HAL_UART_Receive_IT(&huart6, (uint8_t*)&received_byte, 1);  //启动 USART 接收中断
 	TIM2->CNT=65535;
+	origin_count=0;
   /* USER CODE END 2 */
 
   /* Infinite loop */

@@ -38,18 +38,26 @@ uint8_t Pre_Direction[7]={0};
 char openmv_state='0';
 char pre_openmv_state='0';
 char k210_state='0';
-char k210_resrved_state='1';
+char k210_reserved_state='1';
 uint8_t turning_flag=0;
 uint8_t turning_tmp=0;
 uint8_t switch_count=0;
+uint8_t crossing_count=0;
 uint8_t unload=0;
 uint8_t load=1;
+uint8_t judge=0;
 
+uint8_t alarm_enable=0;//alarm-------------------*/
+uint8_t beep_time=0;
 
+uint32_t origin_count=0;
+// 假设编码器为4线正交编码，每转产生N个脉冲
+ float PULSE_PER_REV[2]={1500,1500};
+			 // 根据实际编码器参数修改）
 // 左转控制变量
 int32_t initial_right_encoder = 0;        // 右轮初始编码器值
-int32_t target_pulse_right = 0;           // 右轮目标脉冲数
-float TURN_DISTANCE_CM = 27.5f;     // 右轮90度转动距离
+int32_t target_pulse = 0;           // 目标脉冲数
+float TURN_DISTANCE_CM = 0.0f;     // 转动距离
 float accel_distance;  // 加速阶段脉冲数
 float decel_distance;  // 减速阶段脉冲数
 float cruise_distance; // 巡航阶段脉冲数
@@ -88,12 +96,12 @@ void Set_Right_Direction(uint8_t flag){
 		HAL_GPIO_WritePin(BIN2_GPIO_Port,BIN2_Pin,GPIO_PIN_SET);
 	}
 }
+    
 
 /* PID计算（带抗饱和和滤波）-----------------------------------------*/
 float PID_Compute(PID_Controller *pid, float setpoint, float measurement) {
     // 计算误差
     float error = setpoint - measurement;
-    
     // 比例项
     float P = pid->Kp * error;
     
@@ -135,18 +143,17 @@ float PID_Compute(PID_Controller *pid, float setpoint, float measurement) {
 void turn(float degrees){
     float pwm1 =  0 ;
     float pwm2 =  0 ;
-    if ( degrees == 180.0) TURN_DISTANCE_CM = 27.5 * 2;
-    
+    TURN_DISTANCE_CM = 27.5f;
     if (turning_flag!=0) {
         // 1 初始化左转参数（仅首次触发时执行）
-        if (target_pulse_right == 0) {
+        if (target_pulse == 0) {
             // 停止左轮
             pwm1 = 0 ;
             
             // 计算右轮目标脉冲数（轮半径为3.4cm）
             float wheel_circumference = 2 * 3.1416f * 3.4f;
             float revolutions = TURN_DISTANCE_CM / wheel_circumference;
-            target_pulse_right = (int32_t)(revolutions * 1500);
+            target_pulse = (int32_t)(revolutions * 1500);
             
             // 记录初始编码器值
                     if (degrees == -90.0 ) initial_right_encoder = current_total[0];
@@ -157,9 +164,9 @@ void turn(float degrees){
             pwm2 = 300.0f; // 右轮目标转速（RPM）
                     
                     // 初始化S曲线参数
-            accel_distance = target_pulse_right * 0.5f;  // 前20%加速
-            decel_distance = target_pulse_right * 0.5f; // 后20%减速
-            cruise_distance = target_pulse_right * 0.2f; // 中间巡航
+            accel_distance = target_pulse * 0.4f;  // 前40%加速
+            decel_distance = target_pulse * 0.4f; // 后40%减速
+            cruise_distance = target_pulse * 0.2f; // 中间巡航
         }
              int32_t delta_pulse = 0 ;
          if (degrees == -90.0 ) delta_pulse = abs(current_total[0] - initial_right_encoder);
@@ -183,19 +190,19 @@ void turn(float degrees){
         }
         else {
             // 巡航阶段：保持最大速度
-            pwm2 = 500.0f;
+            pwm2 = 300.0f;
         }
                 
-        if (delta_pulse >= target_pulse_right) {
+        if (delta_pulse >= target_pulse) {
             // 停止右轮
             pwm2 = 0 ;
             // 重置状态
-            target_pulse_right = 0;
+            target_pulse = 0;
 					  turning_flag=0;
         }
     }
     
-        if (degrees == 90.0 || degrees == 180.0)
+        if (degrees == 90.0 )
         {
             pwm_left = pwm1 ;
             pwm_right = pwm2 ;
@@ -206,6 +213,81 @@ void turn(float degrees){
             pwm_right = pwm1 ;
         }
         
+}
+
+void turn180(void){
+	TURN_DISTANCE_CM = 29.5f;
+	if (turning_flag==3) 
+		{
+			
+			Set_Left_Direction(0);
+        if (target_pulse == 0)
+					{
+            // 停止两轮
+          pwm_left = 0 ;
+					pwm_right = 0 ;
+            
+            // 计算目标脉冲数（轮半径为3.4cm）
+         float wheel_circumference = 2 * 3.1416f * 3.4f;
+         float revolutions = TURN_DISTANCE_CM / wheel_circumference;
+         target_pulse = (int32_t)(revolutions * 1500);
+           
+            // 记录初始编码器值
+            initial_right_encoder = current_total[1];
+           
+                    // 初始化S曲线参数
+            accel_distance = target_pulse * 0.4f;  // 前20%加速
+            decel_distance = target_pulse * 0.4f; // 后20%减速
+            cruise_distance = target_pulse * 0.2f; // 中间巡航
+        }
+             int32_t delta_pulse = 0 ;
+          delta_pulse = abs(current_total[1] - initial_right_encoder);
+                
+                // S曲线速度控制
+        if (delta_pulse < accel_distance) {
+            // 加速阶段：使用余弦曲线加速
+            float progress = (float)delta_pulse / accel_distance;
+            pwm_right = 300.0f * (0.5f - 0.5f * cosf(progress * M_PI));
+					  pwm_left = 350.0f * (0.5f - 0.5f * cosf(progress * M_PI));
+                      // 确保最小PWM值
+            if (pwm_right < 150.0f) pwm_right = 150.0f;
+					  if (pwm_left < 150.0f) pwm_left = 150.0f;
+                    
+        } 
+        else if (delta_pulse > (accel_distance + cruise_distance)) {
+            // 减速阶段：使用余弦曲线减速
+            float progress = (float)(delta_pulse - (accel_distance + cruise_distance)) / decel_distance;
+            pwm_right = 300.0f * (0.5f + 0.5f * cosf(progress * M_PI));
+					  pwm_left = 350.0f * (0.5f + 0.5f * cosf(progress * M_PI));
+           // 确保最小PWM值
+            if (pwm_right < 150.0f) pwm_right = 150.0f;
+					  if (pwm_left < 150.0f) pwm_left = 150.0f;
+        }
+        else {
+            // 巡航阶段：保持最大速度
+            pwm_right = 300.0f; 
+            pwm_left  = 350.0f;
+        }
+                
+        if (delta_pulse >= target_pulse) {
+            // 停止两轮
+					  pwm_right = 0 ;
+					  pwm_left = 0 ;
+            // 重置状态
+            target_pulse = 0;
+					  turning_flag=0;
+					  stop_flag=1;
+					  Set_Left_Direction(1);
+        }
+    }
+    
+	
+	}
+float get_distance(){
+	if((current_total[0]-origin_count)>=0)
+	  return (current_total[0]-origin_count)/ PULSE_PER_REV[0]*M_PI*6.4;
+	else
+		return (current_total[0]+4294967296-origin_count)/ PULSE_PER_REV[0]*M_PI*6.4;
 }
 /*void read_Direction_flag(uint8_t Direction[],uint8_t Pre_Direction[],uint8_t n){
 	for(int i=0;i<n;i++)
@@ -240,47 +322,94 @@ void turn(float degrees){
 			Direction[0]=0;
 }*/
 
+void receive_k210_state(){
+	static uint8_t tmp[9]={0};
+	static uint8_t count=0;
+	if(if_ready()==0){
+		if(count==5){
+			for(uint8_t i=0;i<9;i++)
+			  tmp[i]=0;
+		}
+		if(k210_state>='1'&&k210_state<='8'){
+		  tmp[k210_state-'0']++;
+			count++;
+		}
+		uint8_t index=0;
+		while(tmp[index]<=3&&index<9)
+			index++;
+		if(index<9){
+			k210_reserved_state='0'+index;
+			alarm_enable=1;
+			for(uint8_t i=0;i<9;i++)
+			  tmp[i]=0;
+		}
+	}
+}
+uint8_t judge_k210_state(){
+	static uint8_t judge=0;
+	if(mode==2){
+		if(openmv_state=='4'&&get_distance()>=130.0){
+			if(k210_reserved_state==k210_state)
+				judge=1;
+		}
+	}
+	else if(mode==3){
+		static uint8_t tmp_count=0;
+		if(tmp_count==0){
+			if(openmv_state=='4'&&get_distance()>=220.0){
+				if(k210_reserved_state==k210_state)
+					judge=1;
+			}
+			if(pre_openmv_state=='4'&&openmv_state!='4'){
+			  tmp_count=1;
+		  }
+		}
+		else if(tmp_count==1){
+			if(openmv_state=='4'){
+				if(k210_reserved_state==k210_state)
+					judge=1;
+			}
+		}
+	}
+	return judge;
+}
 //判断是否开始跑
 uint8_t if_ready(){
 	static uint8_t ready=0;
-	if(k210_state>='1'&&k210_state<='8'&&unload==0&&load==0){
+	if(k210_reserved_state>='1'&&k210_reserved_state<='8'&&unload==0&&load==0){
 		ready=1;
 		stop_flag=0;
 	}
 	if(openmv_state=='5'&&pre_openmv_state!='5'&&ready==1){
 		switch_count++;
-		if(switch_count==2){
+	}
+		if(switch_count==1){
 				ready=0;
 				k210_state='0';
 				openmv_state='0';
 				turning_flag=3;
 				unload=1;
 			  stop_flag=1;
+			  switch_count++;
 		}
 		else if(switch_count==4){
 			if(turning_flag==0){
 				ready=0;
 				k210_state='0';
 				openmv_state='0';
-				unload=1;
+				load=1;
 				stop_flag=1;
+				switch_count=0;
 			}
 	  }
-  }
 	return ready;
 }
 
-//识别到十字后还要往前走一段
-float get_more(uint8_t turning_tmp){
-	static float more=0.0;
-	if(turning_tmp==1)
-	  more+=(rpm[0]+rpm[1]);
-	else more=0;
-	return more*SAMPLE_TIME*M_PI*3.2;
-}
 //寻红线
 //1直行，2左转，3右转，4识别到十字
 void track(){
+	pre_correct[0]=correct[0];
+	pre_correct[1]=correct[1];
 	switch(openmv_state){
 		case '1':{
 			correct[0]=0.0;
@@ -313,16 +442,14 @@ void road_plan(){
 	if(if_ready()==1){
 		switch(mode){
 			case 1:{
-				if(switch_count==0||switch_count==1){//第一次经过虚线不停留
-					if(openmv_state=='4'){
-						turning_tmp=1;
-					}
-					if(turning_tmp==1&&get_more(turning_tmp)>=50.0){
-						if(k210_resrved_state==1)
+				if(switch_count==0){//第一次经过虚线不停留
+					if(get_distance()>=70.0){
+						origin_count=current_total[0];
+						alarm_enable=1;
+						if(k210_reserved_state=='1')
 							turning_flag=1;
-						else if(k210_resrved_state==2)
+						else if(k210_reserved_state=='2')
 						  turning_flag=2;
-						turning_tmp=0;
 					}
 					if(turning_flag==0)
 						track();
@@ -333,20 +460,16 @@ void road_plan(){
 							turn(-90.0);
 					}
 				}
-				else if(switch_count==2){//第二次识别虚线停在1号病房，ready后启动
-					if(turning_flag==3){
-						turn(180.0);
-					}
-					else{
-						if(openmv_state=='4')
-							turning_tmp=1;
-						if(turning_tmp==1&&get_more(turning_tmp)>=50.0){
-							if(k210_resrved_state==1)
-							  turning_flag=2;
-						  else if(k210_resrved_state==2)
-						    turning_flag=1;
-						  turning_tmp=0;
-					  }
+				else if(switch_count==2){//第1次识别虚线停在1号病房，ready后启动
+						turn180();
+					if(turning_flag!=3){
+						if(openmv_state!='4')
+							origin_count=current_total[0];
+							if(get_distance()>=20.0){
+								if(k210_reserved_state==1)
+									turning_flag=2;
+								else if(k210_reserved_state==2)
+									turning_flag=1;
 						if(turning_flag==0)
 							track();
 						else {
@@ -356,26 +479,139 @@ void road_plan(){
 							  turn(-90.0);
 						}
 					}
+				 }
 				}
 				else if(switch_count==3){
-					if(turning_flag==3)
-						turn(180.0);
-					else {
+					turn180();
+					if(turning_flag!=3){
+						if(openmv_state!='5'&&pre_openmv_state=='5')
+							origin_count=current_total[0];
 						track();
-						if(get_more(1)>=80.0){
+						if(get_distance()>=40.0){
 						  turning_flag=3;
-						  get_more(0);
+							origin_count=current_total[0];
 					  }
 					}
 				}
 				break;
 			}
 			case 2:{
-				
+				if(switch_count==0){
+					judge=judge_k210_state();
+					if(get_distance()>=165.0){
+						origin_count=current_total[0];
+						if(judge==0)
+							turning_flag=1;
+						else 
+						  turning_flag=2;
+					}
+					if(turning_flag==0)
+						track();
+					else {
+						if(turning_flag==1)
+						  turn(90.0);
+						else if(turning_flag==2)
+							turn(-90.0);
+					}
+				}
+				else if(switch_count==2){//第1次识别虚线停在1号病房，ready后启动
+					turn180();
+					if(turning_flag!=3){
+						if(openmv_state=='4'&&pre_openmv_state!='4')
+							origin_count=current_total[0];
+						if(crossing_count==0){
+							if(get_distance()>=35.0){
+								if(judge==0)
+									turning_flag=2;
+								else 
+									turning_flag=1;
+								crossing_count++;
+							}
+						}
+						if(turning_flag==0)
+							track();
+						else {
+							origin_count=current_total[0];
+							if(turning_flag==1)
+						    turn(90.0);
+						  else if(turning_flag==2)
+							  turn(-90.0);
+						}
+					}
+				}
+				else if(switch_count==3){
+				  turn180();
+					if(turning_flag!=3){
+						if(openmv_state!='4'&&pre_openmv_state=='4')
+							origin_count=current_total[0];
+						track();
+						if(get_distance()>=40.0){
+						  turning_flag=3;
+							origin_count=current_total[0];
+					  }
+					}
+				}				
 				break;
 			}
 			case 3:{
-				
+				if(switch_count==0){
+					judge=judge_k210_state();
+					if(get_distance()>=165.0){
+						origin_count=current_total[0];
+						if(judge==0)
+							turning_flag=1;
+						else 
+						  turning_flag=2;
+					}
+					if(turning_flag==0)
+						track();
+					else {
+						if(turning_flag==1)
+						  turn(90.0);
+						else if(turning_flag==2)
+							turn(-90.0);
+					}
+				}
+				else if(switch_count==2){//第1次识别虚线停在1号病房，ready后启动
+					if(turning_flag==3){
+						turn180();
+					}
+					else{
+						if(openmv_state=='4'&&pre_openmv_state!='4')
+							origin_count=current_total[0];
+						if(crossing_count==0){
+							if(get_distance()>=35.0){
+								if(judge==0)
+									turning_flag=2;
+								else 
+									turning_flag=1;
+								crossing_count++;
+							}
+						}
+						if(turning_flag==0)
+							track();
+						else {
+							origin_count=current_total[0];
+							if(turning_flag==1)
+						    turn(90.0);
+						  else if(turning_flag==2)
+							  turn(-90.0);
+						}
+					}
+				}
+				else if(switch_count==3){
+					if(turning_flag==3)
+						turn180();
+					else {
+						if(openmv_state!='4'&&pre_openmv_state=='4')
+							origin_count=current_total[0];
+						track();
+						if(get_distance()>=40.0){
+						  turning_flag=3;
+							origin_count=current_total[0];
+					  }
+					}
+			  }
 				break;
 			}
 			ERROR :{
@@ -428,11 +664,6 @@ void motor_control_in_TIM1(){
 		int32_t delta_right = current_total[1]-pre_total[1];
 	  
     // 计算转速（单位：RPM）
-    // 假设编码器为4线正交编码，每转产生N个脉冲
-    float PULSE_PER_REV[2];
-		PULSE_PER_REV[0]=1500;
-		PULSE_PER_REV[1]=1500;
-			 // 根据实际编码器参数修改）
     
     rpm[0] = (delta_left / PULSE_PER_REV[0]) * (60.0f / SAMPLE_TIME);
 		rpm[1] = (delta_right / PULSE_PER_REV[1]) * (60.0f / SAMPLE_TIME);
@@ -455,6 +686,7 @@ void motor_control_in_TIM1(){
 			sensor_time=0;
 			un_sensor_time++;
 		}*/
+		receive_k210_state();
 		road_plan();
 		// PID计算
 		if(stop_flag==1){
@@ -462,8 +694,8 @@ void motor_control_in_TIM1(){
 			pwm_right=0;
 		}
 	  else if(turning_flag==0){
-      pwm_left = PID_Compute(&left_motor_pid, (target_rpm[0]-correct[0]), rpm[0]);
-		  pwm_right = PID_Compute(&right_motor_pid, (target_rpm[1]+correct[1]), rpm[1]);
+      pwm_left = PID_Compute(&left_motor_pid, (target_rpm[0]-(0.8*correct[0]+0.2*pre_correct[0])), rpm[0]);
+		  pwm_right = PID_Compute(&right_motor_pid, (target_rpm[1]+(0.8*correct[1]+0.2*pre_correct[1])), rpm[1]);
 		}
 		// 更新PWM输出
     __HAL_TIM_SET_COMPARE(&htim8, TIM_CHANNEL_1, (uint32_t)pwm_left);
@@ -473,7 +705,7 @@ void motor_control_in_TIM1(){
 }
 
 //angle_pid计算
-float PID_angle_Compute(PID_Controller *pid, float setpoint, float measurement) {
+/*float PID_angle_Compute(PID_Controller *pid, float setpoint, float measurement) {
     // 计算误差
     float error = setpoint - measurement;
     
@@ -496,4 +728,4 @@ float PID_angle_Compute(PID_Controller *pid, float setpoint, float measurement) 
     float output = P + I + D;
     
     return output;
-}
+}*/

@@ -60,13 +60,9 @@ void Error_Handler(void);
 #define Key2_Pin GPIO_PIN_2
 #define Key2_GPIO_Port GPIOE
 #define Key2_EXTI_IRQn EXTI2_IRQn
-#define Key3_Pin GPIO_PIN_3
-#define Key3_GPIO_Port GPIOE
-#define Key3_EXTI_IRQn EXTI3_IRQn
-#define Unload_Pin GPIO_PIN_4
-#define Unload_GPIO_Port GPIOE
-#define Load_Pin GPIO_PIN_5
-#define Load_GPIO_Port GPIOE
+#define Key1_Pin GPIO_PIN_3
+#define Key1_GPIO_Port GPIOE
+#define Key1_EXTI_IRQn EXTI3_IRQn
 #define Direction_0_Pin GPIO_PIN_5
 #define Direction_0_GPIO_Port GPIOF
 #define Direction_1_Pin GPIO_PIN_6
@@ -95,6 +91,10 @@ void Error_Handler(void);
 #define OLED_CS_GPIO_Port GPIOE
 #define OLED_DC_Pin GPIO_PIN_14
 #define OLED_DC_GPIO_Port GPIOE
+#define k210_tx_Pin GPIO_PIN_10
+#define k210_tx_GPIO_Port GPIOB
+#define k210_rx_Pin GPIO_PIN_11
+#define k210_rx_GPIO_Port GPIOB
 #define OLED_RST_Pin GPIO_PIN_8
 #define OLED_RST_GPIO_Port GPIOD
 #define OLED_SDA_Pin GPIO_PIN_10
@@ -105,20 +105,24 @@ void Error_Handler(void);
 #define AIN1_GPIO_Port GPIOC
 #define openmv_rx_Pin GPIO_PIN_9
 #define openmv_rx_GPIO_Port GPIOG
+#define Key6_Pin GPIO_PIN_13
+#define Key6_GPIO_Port GPIOG
 #define openmv_tx_Pin GPIO_PIN_14
 #define openmv_tx_GPIO_Port GPIOG
+#define Key5_Pin GPIO_PIN_15
+#define Key5_GPIO_Port GPIOG
 #define BIN1_Pin GPIO_PIN_4
 #define BIN1_GPIO_Port GPIOB
 #define BIN2_Pin GPIO_PIN_5
 #define BIN2_GPIO_Port GPIOB
 #define AIN2_Pin GPIO_PIN_8
 #define AIN2_GPIO_Port GPIOB
-#define Key0_Pin GPIO_PIN_0
-#define Key0_GPIO_Port GPIOE
-#define Key0_EXTI_IRQn EXTI0_IRQn
-#define Key1_Pin GPIO_PIN_1
-#define Key1_GPIO_Port GPIOE
-#define Key1_EXTI_IRQn EXTI1_IRQn
+#define Key4_Pin GPIO_PIN_0
+#define Key4_GPIO_Port GPIOE
+#define Key4_EXTI_IRQn EXTI0_IRQn
+#define Key3_Pin GPIO_PIN_1
+#define Key3_GPIO_Port GPIOE
+#define Key3_EXTI_IRQn EXTI1_IRQn
 
 /* USER CODE BEGIN Private defines */
 

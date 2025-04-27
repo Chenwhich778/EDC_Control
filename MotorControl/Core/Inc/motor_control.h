@@ -14,7 +14,7 @@ typedef struct {
 	  float prev_d;
 } PID_Controller;
 /*struct--------------------------------*/
-#define SAMPLE_TIME 0.01
+#define SAMPLE_TIME 0.02
 #define M_PI 3.14159265358979323846
 /*变量-------------------------------------------*/
 extern uint8_t mode;
@@ -41,19 +41,27 @@ extern uint8_t Pre_Direction[7];
 extern char openmv_state;
 extern char pre_openmv_state;
 extern char k210_state;
+extern char k210_reserved_state;
 extern uint8_t turning_flag;
 extern uint8_t turning_tmp;
 extern uint8_t switch_count;
+extern uint8_t crossing_count;
 extern uint8_t unload;
 extern uint8_t load;
+extern uint8_t judge;
 
 // 转弯控制变量
 extern int32_t initial_right_encoder;        // 右轮初始编码器值
-extern int32_t target_pulse_right;           // 右轮目标脉冲数
+extern int32_t target_pulse;           // 右轮目标脉冲数
 extern float TURN_DISTANCE_CM;     // 右轮90度转动距离
 extern float accel_distance;  // 加速阶段脉冲数
 extern float decel_distance;  // 减速阶段脉冲数
 extern float cruise_distance; // 巡航阶段脉冲数
+
+extern uint8_t alarm_enable;//alarm-------------------*/
+extern uint8_t beep_time;
+extern uint32_t origin_count;
+extern float PULSE_PER_REV[2];
 /*变量-----------------------------------------------*/
 
 /*函数------------------------------------------------------------------------*/
@@ -63,10 +71,13 @@ float PID_Compute(PID_Controller *pid, float setpoint, float measurement);
 void Set_Left_Direction(uint8_t flag);
 void Set_Right_Direction(uint8_t flag);
 void turn(float degrees);
+void turn180();
+float get_distance();
+void receive_k210_state();
+uint8_t judge_k210_state();
 uint8_t if_ready();
-float get_more(uint8_t turning_tmp);
 void track();
 void road_plan();
 void motor_control_in_TIM1();
-float PID_angle_Compute(PID_Controller *pid, float setpoint, float measurement);
+//float PID_angle_Compute(PID_Controller *pid, float setpoint, float measurement);
 /*函数------------------------------------------------------------------------*/

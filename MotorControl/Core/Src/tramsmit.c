@@ -10,7 +10,8 @@ char uart_buffer[50];      // UART发送缓冲区
 volatile char rx_buffer[RX_BUFFER_SIZE];
 volatile uint8_t rx_index = 0;
 volatile uint8_t rx_ready = 0;
-char rx_char;
+char rx_char1;
+char rx_char3;
 char received_byte;
 
 void Send_MultiData_FireWater(float speed_rpm, float pidsetpoint,  float speed_rpm_,  float pidsetpoint_) {
@@ -45,7 +46,7 @@ void Parse_Data() {
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance == USART1) { // 确保是目标USART
         // 检测结束符（回车或换行）
-        if (rx_char == '\r' || rx_char == '\n') {
+        if (rx_char1 == '\r' || rx_char1 == '\n') {
             if (rx_index > 0) { // 非空数据
                 rx_buffer[rx_index] = '\0'; // 终止字符串
                 rx_ready = 1; // 设置标志位
@@ -54,31 +55,22 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
         } else {
             // 将字符存入缓冲区，防止溢出
             if (rx_index < RX_BUFFER_SIZE - 1) {
-                rx_buffer[rx_index++] = rx_char;
+                rx_buffer[rx_index++] = rx_char1;
             } else {
                 // 缓冲区满，重置索引（可选：错误处理）
                 rx_index = 0;
             }
         }
         // 重新启动接收中断
-         HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char, 1);
+         HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char1, 1);
     }
+		else if(huart->Instance== USART3){
+			k210_state=rx_char3;
+			HAL_UART_Receive_IT(&huart3, (uint8_t*)&rx_char3, 1);  //启动 USART 接收中断
+		}
 		else if(huart->Instance == USART6){
 			pre_openmv_state=openmv_state;
 			openmv_state=(uint8_t) received_byte;
 			HAL_UART_Receive_IT(&huart6, (uint8_t*)&received_byte, 1);  //启动 USART 接收中断
 		}
-}
-
-// I2C 从机接收回调函数
-void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c, uint8_t TransferDirection, uint16_t AddrMatchCode) {
-    if (TransferDirection == I2C_DIRECTION_RECEIVE) { // 主机要写数据到从机
-			  openmv_state=received_byte;
-        HAL_I2C_Slave_Receive_IT(&hi2c1, (uint8_t*)&received_byte, 1); // 接收 1 字节
-    }
-}
-
-// 数据接收完成回调
-void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c) {
-    openmv_state = received_byte; // 直接赋值 uint8_t
 }
