@@ -65,7 +65,15 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
          HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char1, 1);
     }
 		else if(huart->Instance== USART3){
-			k210_state=rx_char3;
+			static uint8_t i=0;
+			if(i==0){
+			  k210_state[0]=rx_char3;
+				i=1;
+			}
+			else{
+			  k210_state[1]=rx_char3;
+				i=0;
+			}
 			HAL_UART_Receive_IT(&huart3, (uint8_t*)&rx_char3, 1);  //启动 USART 接收中断
 		}
 		else if(huart->Instance == USART6){

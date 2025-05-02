@@ -40,7 +40,7 @@ extern uint8_t Direction[7];
 extern uint8_t Pre_Direction[7];
 extern char openmv_state;
 extern char pre_openmv_state;
-extern char k210_state;
+extern char k210_state[2];
 extern char k210_reserved_state;
 extern uint8_t turning_flag;
 extern uint8_t turning_tmp;
@@ -48,7 +48,7 @@ extern uint8_t switch_count;
 extern uint8_t crossing_count;
 extern uint8_t unload;
 extern uint8_t load;
-extern uint8_t judge;
+extern uint8_t stay_time;
 
 // 转弯控制变量
 extern int32_t initial_right_encoder;        // 右轮初始编码器值
@@ -60,7 +60,7 @@ extern float cruise_distance; // 巡航阶段脉冲数
 
 extern uint8_t alarm_enable;//alarm-------------------*/
 extern uint8_t beep_time;
-extern uint32_t origin_count;
+extern int32_t origin_count;
 extern float PULSE_PER_REV[2];
 /*变量-----------------------------------------------*/
 
@@ -71,10 +71,10 @@ float PID_Compute(PID_Controller *pid, float setpoint, float measurement);
 void Set_Left_Direction(uint8_t flag);
 void Set_Right_Direction(uint8_t flag);
 void turn(float degrees);
-void turn180();
+void turn180(float degree);
 float get_distance();
 void receive_k210_state();
-uint8_t judge_k210_state();
+uint8_t judge_k210_state(uint8_t choose1,uint8_t choose2);
 uint8_t if_ready();
 void track();
 void road_plan();

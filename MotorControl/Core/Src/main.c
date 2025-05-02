@@ -127,6 +127,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		OLED_ShowNum(37,48,turning_flag,1,OLED_6X8);
 		OLED_ShowFloatNum(49,48,get_distance(),3,1,OLED_6X8);
 		OLED_ShowNum(55,40,switch_count,1,OLED_6X8);
+		OLED_ShowChar(67,40,k210_state[0],OLED_6X8);
+		OLED_ShowChar(79,40,k210_state[1],OLED_6X8);
 		OLED_Update();
 		if(alarm_enable==1){
 			__HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, 500);
@@ -278,7 +280,7 @@ int main(void)
 	HAL_UART_Receive_IT(&huart3, (uint8_t *)&rx_char3, 1);  //启动 USART 接收中断
 	HAL_UART_Receive_IT(&huart6, (uint8_t*)&received_byte, 1);  //启动 USART 接收中断
 	TIM2->CNT=65535;
-	origin_count=0;
+	origin_count=current_total[0];
   /* USER CODE END 2 */
 
   /* Infinite loop */
