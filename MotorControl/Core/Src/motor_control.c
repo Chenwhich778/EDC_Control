@@ -611,7 +611,7 @@ void road_plan(){
 				}
 				else if(switch_count==6){
 					track();
-					if(get_distance()>=30.0){
+					if(get_distance()>=28.0){
 					  stop_flag=1;
 						stay_time++;
 						if(stay_time>=20){
@@ -624,11 +624,11 @@ void road_plan(){
 				else if(switch_count==7){
 					if(judge_k210_state(0,1)==1){
 						turning_flag=1;
-						turn(90.0);
+						turn(100.0);
 					}
 					else{
 						turning_flag=2;
-						turn(-90.0);
+						turn(-100.0);
 					}
 				}
 				else if(switch_count==8){
@@ -675,26 +675,53 @@ void road_plan(){
 						}
 				}
 				else if(switch_count==3){
-						if(get_distance()>=59.0){
-							stop_flag=1;
-							stay_time++;
-							judge_k210_state(2,2);
-							if(stay_time>=100){
-								switch_count=4;
-								stay_time=0;
-								stop_flag=0;
+					if(judge_k210_state(0,1)==1){
+							if(get_distance()>=60.0){
+								stop_flag=1;
+								stay_time++;
+								judge_k210_state(2,2);
+								if(stay_time>=100){
+									switch_count=4;
+									stay_time=0;
+									stop_flag=0;
+								}
+							}
+					}
+					else{
+						if(get_distance()>=57.0){
+								stop_flag=1;
+								stay_time++;
+								judge_k210_state(2,2);
+								if(stay_time>=100){
+									switch_count=4;
+									stay_time=0;
+									stop_flag=0;
+								}
 							}
 					}
 					track();
 				}
 		    else if(switch_count==4){
-					if(get_distance()>=73.0){
-						stop_flag=1;
-						stay_time++;
-						if(stay_time>=20){
-						  switch_count=5;
-							stay_time=0;
-							stop_flag=0;
+					if(judge_k210_state(0,1)==1){
+						if(get_distance()>=72.0){
+							stop_flag=1;
+							stay_time++;
+							if(stay_time>=20){
+								switch_count=5;
+								stay_time=0;
+								stop_flag=0;
+							}
+						}
+					}
+					else{
+						if(get_distance()>=70.0){
+							stop_flag=1;
+							stay_time++;
+							if(stay_time>=20){
+								switch_count=5;
+								stay_time=0;
+								stop_flag=0;
+							}
 						}
 					}
 					track();
@@ -746,7 +773,7 @@ void road_plan(){
 				}
 				else if(switch_count==11){
 					track();
-					if(get_distance()>=73.0){
+					if(get_distance()>=70.0){
 					  stop_flag=1;
 						stay_time++;
 						if(stay_time>=20){
