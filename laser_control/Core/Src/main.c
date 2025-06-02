@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "rtc.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -26,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "OLED.h"
 #include "servo_protocol.h"
+#include "laser_tracker.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "string.h"
@@ -34,7 +36,7 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 char current_coord[BUF_SIZE]= {"xiangwan stupid donkey"};
-int x1, y1, x2, y2, x3, y3, x4, y4, a, b;
+int x1, y1, x2, y2, x3, y3, x4, y4, a, b, c, d;
   
 /* USER CODE END PTD */
 
@@ -47,34 +49,39 @@ int x1, y1, x2, y2, x3, y3, x4, y4, a, b;
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 void parseCoordinates(const char *str, int *x1, int *y1, int *x2, int *y2, 
-                      int *x3, int *y3, int *x4, int *y4, int *a, int *b) {
-    // 定义一个临时的字符指针，用于遍历字符串
+                      int *x3, int *y3, int *x4, int *y4, int *a, int *b, int *c, int *d) {
     const char *ptr = str;
     
-    // 逐个解析坐标对
-    sscanf(ptr, "%d,%d;", x1, y1);  // 解析第一个坐标 (x1, y1)
-    ptr = strchr(ptr, ';') + 1;      // 移动指针到下一个坐标
-    
-    sscanf(ptr, "%d,%d;", x2, y2);  // 解析第二个坐标 (x2, y2)
+    // 解析前四个顶点坐标（x1,y1;x2,y2;x3,y3;x4,y4）
+    sscanf(ptr, "%d,%d;", x1, y1);
     ptr = strchr(ptr, ';') + 1;
     
-    sscanf(ptr, "%d,%d;", x3, y3);  // 解析第三个坐标 (x3, y3)
+    sscanf(ptr, "%d,%d;", x2, y2);
     ptr = strchr(ptr, ';') + 1;
     
-    sscanf(ptr, "%d,%d;", x4, y4);  // 解析第四个坐标 (x4, y4)
+    sscanf(ptr, "%d,%d;", x3, y3);
     ptr = strchr(ptr, ';') + 1;
     
-    sscanf(ptr, "%d,%d", a, b);    // 解析激光红点 (a, b)
+    sscanf(ptr, "%d,%d;", x4, y4);
+    ptr = strchr(ptr, ';') + 1;
+    
+    // 解析激光红点（a,b）和绿点坐标（c,d）
+    sscanf(ptr, "%d,%d;", a, b); 
+    ptr = strchr(ptr, ';') + 1;
+    
+    sscanf(ptr, "%d,%d", c, d);  
 }
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+int test1 = 6;
 uint32_t last_key_time = 0;
+uint32_t beeptime = 0;
 int circle1 = 0 ;
-
+int circle2 = 0 ;
+int circle3 = 0 ;
 //按键控制
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
     if (HAL_GetTick() - last_key_time > 10) { // 200ms防抖
@@ -82,16 +89,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         
         if (GPIO_Pin == Key1_Pin) {
 					//回到中心点
-            Servo_SetPosition(0x01, 2865, 1000);Servo_SetPosition(0x02, 3500, 500);
+            Servo_SetPosition(1, 2865, 500);Servo_SetPosition(2, 3500, 500);
         }
 				else if (GPIO_Pin == Key2_Pin) {
             circle1 = 1 ;
         } 
 				else if (GPIO_Pin == Key3_Pin) {
-            
+            circle2 = 1 ;
 				}
 				else if(GPIO_Pin==Key4_Pin){
-					
+					  circle3 = 1 ;
 				}
 				
     }
@@ -103,19 +110,26 @@ void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-  if (htim->Instance == TIM3) {  
+  if (htim->Instance == TIM1) {  
 		
-    //获取字符串将它给到current_coord
-		if (coord_updated) {			
-        strncpy(current_coord, coord, BUF_SIZE);  // 复制数据
-			
-        OLED_ShowString(40,32,current_coord,OLED_6X8);
+				// 4. 显示更新
+        OLED_Clear();
+				OLED_ShowString(4, 10, "dj1:", OLED_6X8);
+	      OLED_ShowString(1,32,"Pos:",OLED_6X8);
+				OLED_ShowString(30,32,current_coord,OLED_6X8);
+			  OLED_ShowNum(30, 10, a, 3 , OLED_6X8);
+		    OLED_ShowNum(60, 10, b, 3 , OLED_6X8);
+				
+        OLED_ShowString(4, 50, "any:", OLED_6X8);
+        OLED_ShowSignedNum(40, 50, c, 4, OLED_6X8);
+        OLED_ShowString(72, 50, ",", OLED_6X8);
+        OLED_ShowSignedNum(78, 50, d, 4, OLED_6X8);
         OLED_Update();
-        }
-		//将current_coord拆分成坐标
-		parseCoordinates(current_coord, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &a, &b);
-				
-				
+					
+		
+		
+		
+		
 	}
 }
 
@@ -159,22 +173,28 @@ int main(void)
   MX_GPIO_Init();
   MX_USART6_UART_Init();
   MX_USART3_UART_Init();
-  MX_TIM3_Init();
+  MX_TIM1_Init();
+  MX_RTC_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
-	
-	
+	HAL_TIM_Base_Start_IT(&htim1);
+	HAL_TIM_PWM_Start(&htim5,TIM_CHANNEL_3);
 	
 	OLED_Init();
-	OLED_ShowString(1,32,"Pos:",OLED_6X8);
-	OLED_Update();
 	
-	
-    // 初始化舵机通信
-    Servo_Init(&huart6);
+	Servo_Init(&huart6);
+	  
+	// 标记是否为首次初始化
+  uint8_t first_init = 1;
+   
     
-//		Servo_SetREDLaser(0x01, 2860, 1000, 
-//                      0x02, 3505, 500);
 		
+    LaserTracker tracker = {0};
+//    // 在main()初始化部分添加默认顶点（测试用）
+//    Point default_vertices[4] = {{200, 200}, {400, 200}, {400, 300}, {200, 300}};
+//    init_tracker(&tracker, default_vertices);
+//    generate_path(&tracker, 20); // 强制生成路径，用于测试
+//		test1 = tracker.current_target;
 		
   /* USER CODE END 2 */
 
@@ -200,6 +220,38 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 		
+    // 1. 更新坐标数据
+        if (coord_updated) {
+            strncpy(current_coord, coord, BUF_SIZE);
+            coord_updated = 0;
+            
+            // 解析新坐标
+            parseCoordinates(current_coord, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4, &a, &b, &c, &d);
+            
+            // 仅在首次初始化时生成路径
+        
+      }
+				
+		// 2. 更新激光位置
+        Point cam_pos = {a, b};
+        update_laser_position(&tracker, cam_pos);
+		// 3. 执行追踪控制
+        if (circle2) {
+					if(first_init) {
+            Point vertices[4] = {{x1,y1}, {x2,y2}, {x3,y3}, {x4,y4}};
+						init_tracker(&tracker, vertices);
+            generate_path(&tracker, 25);
+            tracker.current_target = 0;
+            first_init = 0; // 清除首次初始化标记
+        }
+            control_laser(&tracker);
+				    HAL_Delay(55);
+        }
+				
+				 if(circle3){
+				    control_green_light(a,b,c,d);
+         }   
+		
 	}
   /* USER CODE END 3 */
 }
@@ -221,9 +273,10 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
   RCC_OscInitStruct.PLL.PLLM = 8;

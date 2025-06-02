@@ -53,49 +53,49 @@ void Servo_SetPosition(uint8_t id, uint16_t position, uint16_t speed) {
     HAL_UART_Transmit(servo_huart, packet, 13, HAL_MAX_DELAY); // 发送13字节
 }
 
-// 同时控制两个舵机的位置和速度
-void Servo_SetREDLaser(uint8_t id1, uint16_t pos1, uint16_t speed1, 
-                            uint8_t id2, uint16_t pos2, uint16_t speed2) {
-    const uint8_t param_len_per_servo = 4; // 每个舵机的参数长度(位置2字节+速度2字节)
-    const uint8_t total_param_len = 1 + 2 + 2 * (1 + param_len_per_servo); // 总参数长度
-    uint8_t packet[2 + 1 + 1 + 1 + total_param_len + 1]; // 完整包长度
-    
-    // 构建SYNC WRITE指令包
-    uint8_t index = 0;
-    packet[index++] = 0xFF; // 帧头
-    packet[index++] = 0xFF; // 帧头
-    packet[index++] = 0xFE; // 广播ID
-    packet[index++] = total_param_len + 2; // 长度
-    packet[index++] = 0x83; // SYNC WRITE指令
-    packet[index++] = 0x2A; // 目标位置寄存器地址
-    packet[index++] = param_len_per_servo; // 每个舵机的参数长度
-    
-    // 第一个舵机参数
-    packet[index++] = id1;
-    packet[index++] = (uint8_t)(pos1 & 0xFF); // 位置低位
-    packet[index++] = (uint8_t)(pos1 >> 8);   // 位置高位
-    packet[index++] = 0x00; // 时间低位(设为0)
-    packet[index++] = 0x00; // 时间高位(设为0)
-    packet[index++] = (uint8_t)(speed1 & 0xFF); // 速度低位
-    packet[index++] = (uint8_t)(speed1 >> 8);   // 速度高位
-    
-    // 第二个舵机参数
-    packet[index++] = id2;
-    packet[index++] = (uint8_t)(pos2 & 0xFF); // 位置低位
-    packet[index++] = (uint8_t)(pos2 >> 8);   // 位置高位
-    packet[index++] = 0x00; // 时间低位(设为0)
-    packet[index++] = 0x00; // 时间高位(设为0)
-    packet[index++] = (uint8_t)(speed2 & 0xFF); // 速度低位
-    packet[index++] = (uint8_t)(speed2 >> 8);   // 速度高位
-    
-    // 计算校验和
-    uint8_t checksum = 0;
-    for (uint8_t i = 2; i < index; i++) checksum += packet[i];
-    packet[index++] = ~checksum;
-    
-    // 发送数据包
-    HAL_UART_Transmit(servo_huart, packet, index, HAL_MAX_DELAY);
-}
+//// 同时控制两个舵机的位置和速度
+//void Servo_SetREDLaser(uint8_t id1, uint16_t pos1, uint16_t speed1, 
+//                            uint8_t id2, uint16_t pos2, uint16_t speed2) {
+//    const uint8_t param_len_per_servo = 4; // 每个舵机的参数长度(位置2字节+速度2字节)
+//    const uint8_t total_param_len = 1 + 2 + 2 * (1 + param_len_per_servo); // 总参数长度
+//    uint8_t packet[2 + 1 + 1 + 1 + total_param_len + 1]; // 完整包长度
+//    
+//    // 构建SYNC WRITE指令包
+//    uint8_t index = 0;
+//    packet[index++] = 0xFF; // 帧头
+//    packet[index++] = 0xFF; // 帧头
+//    packet[index++] = 0xFE; // 广播ID
+//    packet[index++] = total_param_len + 2; // 长度
+//    packet[index++] = 0x83; // SYNC WRITE指令
+//    packet[index++] = 0x2A; // 目标位置寄存器地址
+//    packet[index++] = param_len_per_servo; // 每个舵机的参数长度
+//    
+//    // 第一个舵机参数
+//    packet[index++] = id1;
+//    packet[index++] = (uint8_t)(pos1 & 0xFF); // 位置低位
+//    packet[index++] = (uint8_t)(pos1 >> 8);   // 位置高位
+//    packet[index++] = 0x00; // 时间低位(设为0)
+//    packet[index++] = 0x00; // 时间高位(设为0)
+//    packet[index++] = (uint8_t)(speed1 & 0xFF); // 速度低位
+//    packet[index++] = (uint8_t)(speed1 >> 8);   // 速度高位
+//    
+//    // 第二个舵机参数
+//    packet[index++] = id2;
+//    packet[index++] = (uint8_t)(pos2 & 0xFF); // 位置低位
+//    packet[index++] = (uint8_t)(pos2 >> 8);   // 位置高位
+//    packet[index++] = 0x00; // 时间低位(设为0)
+//    packet[index++] = 0x00; // 时间高位(设为0)
+//    packet[index++] = (uint8_t)(speed2 & 0xFF); // 速度低位
+//    packet[index++] = (uint8_t)(speed2 >> 8);   // 速度高位
+//    
+//    // 计算校验和
+//    uint8_t checksum = 0;
+//    for (uint8_t i = 2; i < index; i++) checksum += packet[i];
+//    packet[index++] = ~checksum;
+//    
+//    // 发送数据包
+//    HAL_UART_Transmit(servo_huart, packet, index, HAL_MAX_DELAY);
+//}
 
 
 
@@ -121,11 +121,11 @@ uint16_t Servo_ReadPosition(uint8_t id) {
 
 // 获取最新coord数据
 void Servo_GetCoord(char *dest, uint16_t max_len) {
-    __disable_irq();  // 防止读取过程中被中断修改
+//    __disable_irq();  // 防止读取过程中被中断修改
     strncpy(dest, coord, max_len - 1);
     dest[max_len - 1] = '\0';
     coord_updated = 0;  // 清除更新标志
-    __enable_irq();
+//    __enable_irq();
 }
 
 // USART接收中断回调

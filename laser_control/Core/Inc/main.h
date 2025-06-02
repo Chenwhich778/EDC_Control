@@ -63,6 +63,8 @@ void Error_Handler(void);
 #define Key1_Pin GPIO_PIN_3
 #define Key1_GPIO_Port GPIOE
 #define Key1_EXTI_IRQn EXTI3_IRQn
+#define beep_Pin GPIO_PIN_2
+#define beep_GPIO_Port GPIOA
 #define OLED_SCK_Pin GPIO_PIN_13
 #define OLED_SCK_GPIO_Port GPIOF
 #define OLED_CS_Pin GPIO_PIN_12
