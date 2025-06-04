@@ -5,10 +5,10 @@
 #include <string.h>
 
 
-extern int circle2;
+extern int circle3;
  float test = 3;
- int servo3 = 3180 ;
- int servo4 = 840 ;
+ int servo3 = 3700 ;
+ int servo4 = 805 ;
 
 // 初始化跟踪器
 void init_tracker(LaserTracker *tracker, Point vertices[4]) {
@@ -19,8 +19,8 @@ void init_tracker(LaserTracker *tracker, Point vertices[4]) {
     tracker->path_size = 0;
     tracker->current_target = 0;
     tracker->laser_pos = tracker->vertices[0]; // 初始位置设为左上角顶点
-    tracker->servo1_pos = 2800; // 舵机1初始位置
-    tracker->servo2_pos = 3458; // 舵机2初始位置
+    tracker->servo1_pos = 2970; // 舵机1初始位置
+    tracker->servo2_pos = 3290; // 舵机2初始位置
 }
 
 void generate_path(LaserTracker *tracker, int segments_per_side) {
@@ -58,6 +58,10 @@ static int constrain(int value, int min, int max) {
     return (value < min) ? min : ((value > max) ? max : value);
 }
 
+static float Constrain(float value, float min, float max) {
+    return (value < min) ? min : ((value > max) ? max : value);
+}
+
 void control_laser(LaserTracker *tracker) {
     //  安全检查放在函数开头
     if (tracker->path_size <= 0 || 
@@ -72,27 +76,56 @@ void control_laser(LaserTracker *tracker) {
     float error_x = tracker->target_pos.x - tracker->laser_pos.x;
     float error_y = tracker->target_pos.y - tracker->laser_pos.y;
 
-    const int STEP = 1;
-    int delta1 = (error_x > 0) ? STEP : -STEP;  // x轴误差>0时右移，否则左移
-    int delta2 = (error_y > 0) ? STEP : -STEP;  // y轴误差>0时下移（根据坐标系y轴向下）
+		//  检查是否到达目标点
+    float distance2 = error_x * error_x + error_y * error_y;
+		float threshold = 500.0f ; // 速度相关阈值
+		
+    // 比例控制参数 (需要根据实际硬件调整)
+    const float KP = 0.069f;
     
+    // 计算比例控制输出
+    float move_x = KP * error_x;
+    float move_y = KP * error_y;
+		
+		int rate1 = 50;
+		int rate2 = 50;
+		
+		if((tracker->current_target >0 && tracker->current_target <=25)||(tracker->current_target >50 && tracker->current_target <=75))
+		{
+			rate1 = 1000;
+			rate2 = 350;
+		}
+    else    {
+			rate1 = 350;
+			rate2 = 1000;
+		}
+		
+    move_x = Constrain( move_x, -1, 1);
+		move_y = Constrain( move_y, -1, 1);
+		
+		
+		
     //  更新舵机位置（使用实际范围）
-    tracker->servo1_pos = constrain(tracker->servo1_pos + delta1, 2400, 3100);
-    tracker->servo2_pos = constrain(tracker->servo2_pos + delta2, 3300, 3700);
+    tracker->servo1_pos = constrain(tracker->servo1_pos + (int)move_x, 2700, 3400);
+		
+    tracker->servo2_pos = constrain(tracker->servo2_pos + (int)move_y, 3100, 3600);
     
     //  发送控制指令
-    Servo_SetPosition(1, tracker->servo1_pos, 80);
-    Servo_SetPosition(2, tracker->servo2_pos, 75);
+    Servo_SetPosition(1, tracker->servo1_pos, rate1);
+		HAL_Delay(10);
+    Servo_SetPosition(2, tracker->servo2_pos, rate2);
     
-    //  检查是否到达目标点
-    float distance2 = error_x * error_x + error_y * error_y;
+    
 		
 		test = tracker->servo1_pos ;//测试
 		
-    if (distance2 < 130.0f) { // 稍微增大阈值
+    if (distance2 < threshold) { // 稍微增大阈值
         tracker->current_target = (tracker->current_target + 1) % tracker->path_size;
     }
     
+		 
+		if   (tracker->current_target == 0 ) {
+        return;}
 }
 
 void control_green_light(int a, int b, int c, int d) {
@@ -100,24 +133,30 @@ void control_green_light(int a, int b, int c, int d) {
     float error_x = a - c;
     float error_y = b - d;
 
-    const int STEP = 1; // 跟踪步长，可根据需要调整
+     // 比例控制参数 (需要根据实际硬件调整)
+    const float KP = 0.07f;
     
-    // 根据误差方向决定步进方向
-    int delta_x = (error_x > 0) ? STEP : -STEP;
-    int delta_y = (error_y > 0) ? STEP : -STEP;
-
+    // 计算比例控制输出
+    float move_x = KP * error_x;
+    float move_y = KP * error_y;
+       
+    move_x = Constrain( move_x, -1, 1);
+		move_y = Constrain( move_y, -1, 1);
     // 更新舵机位置（确保在安全范围内）
 	
-        servo3 = constrain(servo3 + delta_x, 2800, 3250); // 舵机1控制绿点x方向
-        servo4 = constrain(servo4 + delta_y, 800, 950); // 舵机2控制绿点y方向
+	//  检查是否到达目标点
+    float distance2 = error_x * error_x + error_y * error_y;
+    if (distance2 < 60.0f||circle3 == 0||a == 0 || b == 0) { 
+			move_x = 0;
+			move_y = 0;
+    }
+        servo3 = constrain(servo3 + (int)move_x, 3400, 4050); // 舵机1控制绿点x方向
+        servo4 = constrain(servo4 + (int)move_y, 650, 1150); // 舵机2控制绿点y方向
 
     // 发送舵机控制指令
-    Servo_SetPosition(3, servo3, 60); // 绿光舵机通道为3
-    Servo_SetPosition(4, servo4, 60); // 绿光舵机通道为4
+    Servo_SetPosition(3, servo3, 1000); // 绿光舵机通道为3
+    Servo_SetPosition(4, servo4, 1000); // 绿光舵机通道为4
 
-	  //  检查是否到达目标点
-    float distance2 = error_x * error_x + error_y * error_y;
-    if (distance2 < 20.0f) { return;
-    }
+	  
 		 
 }

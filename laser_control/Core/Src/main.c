@@ -37,7 +37,6 @@
 /* USER CODE BEGIN PTD */
 char current_coord[BUF_SIZE]= {"xiangwan stupid donkey"};
 int x1, y1, x2, y2, x3, y3, x4, y4, a, b, c, d;
-  
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -89,10 +88,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
         
         if (GPIO_Pin == Key1_Pin) {
 					//回到中心点
-            Servo_SetPosition(1, 2865, 500);Servo_SetPosition(2, 3500, 500);
+            Servo_SetPosition(1, 3050, 500);Servo_SetPosition(2, 3350, 500);
         }
 				else if (GPIO_Pin == Key2_Pin) {
-            circle1 = 1 ;
+            circle2 = 0 ;
         } 
 				else if (GPIO_Pin == Key3_Pin) {
             circle2 = 1 ;
@@ -149,7 +148,10 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-    
+    a = 0;
+	  b = 0;
+	  c = 0;
+	  d = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -202,19 +204,19 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-		if(circle1){
-		Servo_SetPosition(0x01, 2770, 300);Servo_SetPosition(0x02, 3420, 300);
-		HAL_Delay(1000);
-		Servo_SetPosition(0x01, 2955, 300);Servo_SetPosition(0x02, 3417, 300);
-		HAL_Delay(800);	
-    Servo_SetPosition(0x01, 2950, 300);Servo_SetPosition(0x02, 3587, 300);
-		HAL_Delay(800);
-		Servo_SetPosition(0x01, 2770, 300);Servo_SetPosition(0x02, 3587, 300);
-		HAL_Delay(800);
-		Servo_SetPosition(0x01, 2770, 300);Servo_SetPosition(0x02, 3420, 300);
-			
-			circle1 = 0 ;
-    }    
+//		if(circle1){
+//		Servo_SetPosition(0x01, 2900, 300);Servo_SetPosition(0x02, 3220, 300);
+//		HAL_Delay(1200);
+//		Servo_SetPosition(0x01, 3200, 300);Servo_SetPosition(0x02, 3230, 300);
+//		HAL_Delay(1200);	
+//    Servo_SetPosition(0x01, 3200, 300);Servo_SetPosition(0x02, 3500, 300);
+//		HAL_Delay(1200);
+//		Servo_SetPosition(0x01, 2890, 300);Servo_SetPosition(0x02, 3500, 300);
+//		HAL_Delay(1200);
+//		Servo_SetPosition(0x01, 2900, 300);Servo_SetPosition(0x02, 3230, 300);
+//			
+//			circle1 = 0 ;
+//    }    
         
     /* USER CODE END WHILE */
 
@@ -245,12 +247,14 @@ int main(void)
             first_init = 0; // 清除首次初始化标记
         }
             control_laser(&tracker);
-				    HAL_Delay(55);
+				    HAL_Delay(9);
+				if(circle3){
+				    control_green_light(a,b,c,d);
+         } 
+				
         }
 				
-				 if(circle3){
-				    control_green_light(a,b,c,d);
-         }   
+				   
 		
 	}
   /* USER CODE END 3 */
