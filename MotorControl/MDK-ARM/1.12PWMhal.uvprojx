@@ -404,19 +404,9 @@
               <FilePath>..\Drivers\OLED\OLED_Data.c</FilePath>
             </File>
             <File>
-              <FileName>mpu6050.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\mpu6050.c</FilePath>
-            </File>
-            <File>
               <FileName>motor_control.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Core\Src\motor_control.c</FilePath>
-            </File>
-            <File>
-              <FileName>angle.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Core\Src\angle.c</FilePath>
             </File>
             <File>
               <FileName>tramsmit.c</FileName>

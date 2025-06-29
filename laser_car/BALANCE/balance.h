@@ -4,11 +4,11 @@
 #include "system.h"
 #include "laser_tracker.h"
 
-#define BALANCE_TASK_PRIO		4     //Task priority //ÈÎÎñÓÅÏÈ¼¶
-#define BALANCE_STK_SIZE 		512   //Task stack size //ÈÎÎñ¶ÑÕ»´óÐ¡
+#define BALANCE_TASK_PRIO		6     //Task priority //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¼ï¿½
+#define BALANCE_STK_SIZE 		512   //Task stack size //ï¿½ï¿½ï¿½ï¿½ï¿½Õ»ï¿½ï¿½Ð¡
 
 //Parameter of kinematics analysis of omnidirectional trolley
-//È«ÏòÂÖÐ¡³µÔË¶¯Ñ§·ÖÎö²ÎÊý
+//È«ï¿½ï¿½ï¿½ï¿½Ð¡ï¿½ï¿½ï¿½Ë¶ï¿½Ñ§ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 #define X_PARAMETER    (sqrt(3)/2.f)               
 #define Y_PARAMETER    (0.5f)    
 #define L_PARAMETER    (1.0f)
@@ -39,5 +39,9 @@ void PS2_control(void);
 float float_abs(float insert);
 void robot_mode_check(void);
 void FlashParam_Read(void);
+
+extern int test_num1;
+extern float PRESET_ENEMY_X;
+extern float PRESET_ENEMY_Y;
 #endif  
 

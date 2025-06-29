@@ -7,7 +7,7 @@
 #include "laser_tracker.h"//新增移植
 
 #define DATA_STK_SIZE   512 
-#define DATA_TASK_PRIO  4
+#define DATA_TASK_PRIO  5
 
 #define FRAME_HEADER      0X7B //Frame_header //帧头
 #define FRAME_TAIL        0X7D //Frame_tail   //帧尾
@@ -108,6 +108,37 @@ u8 AT_Command_Capture(u8 uart_recv);
 void _System_Reset_(u8 uart_recv);
 
 extern uint8_t FlashWriteFlag;
+
+extern int x1, y1, x2, y2, x3, y3, x4, y4;
+extern uint16_t turn_time;
+extern float X_car,Y_car,X_enemy,Y_enemy;
+
+// 添加环形缓冲区结构
+#define RING_BUF_SIZE 1024
+// 溢出计数器声明
+extern volatile uint32_t usart1_overflow_count;
+extern volatile uint32_t usart3_overflow_count;
+
+typedef struct {
+	uint8_t buffer[RING_BUF_SIZE];
+	volatile uint16_t head;
+	volatile uint16_t tail;
+	volatile uint8_t frame_ready;
+} RingBuffer;
+
+// 声明外部缓冲区
+extern RingBuffer USART1_RxBuffer;
+extern RingBuffer USART3_RxBuffer;
+
+// 添加函数声明
+void RingBuffer_Init(RingBuffer *rb);
+uint8_t RingBuffer_Put(RingBuffer *rb, uint8_t data);
+uint8_t RingBuffer_Get(RingBuffer *rb, uint8_t *data);
+uint16_t RingBuffer_Available(RingBuffer *rb);
+uint8_t RingBuffer_IsEmpty(RingBuffer *rb);
+void USART1_ProcessFrame(void);
+void USART3_ProcessFrame(void);
+
 
 #endif
 

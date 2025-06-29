@@ -12,4 +12,3 @@ extern char received_byte;
 
 void Send_MultiData_FireWater(float speed_rpm, float pidsetpoint,  float speed_rpm_,  float pidsetpoint_);
 void Parse_Data();
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);

@@ -8,8 +8,8 @@
 #define SERVO_TIMEOUT 100
 #define GOAL_POSITION_ADDR 0x2A
 #define READ_DATA 0x02
-#define center_x1 2048
-#define center_y1 3540
+#define center_x1 2024
+#define center_y1 1940
 #define max_servo 4095
 
 extern char coord[BUF_SIZE];

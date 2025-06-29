@@ -36,9 +36,7 @@ void Parse_Data() {
     }
 
     if (count == 3) { // 确保接收到三个值
-        right_motor_pid.Kp = values[0];
-        right_motor_pid.Ki = values[1];
-        right_motor_pid.Kd = values[2];
+       
     }
 	}
 
@@ -65,20 +63,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
          HAL_UART_Receive_IT(&huart1, (uint8_t *)&rx_char1, 1);
     }
 		else if(huart->Instance== USART3){
-			static uint8_t i=0;
-			if(i==0){
-			  k210_state[0]=rx_char3;
-				i=1;
-			}
-			else{
-			  k210_state[1]=rx_char3;
-				i=0;
-			}
+			
 			HAL_UART_Receive_IT(&huart3, (uint8_t*)&rx_char3, 1);  //启动 USART 接收中断
 		}
 		else if(huart->Instance == USART6){
-			pre_openmv_state=openmv_state;
-			openmv_state=(uint8_t) received_byte;
 			HAL_UART_Receive_IT(&huart6, (uint8_t*)&received_byte, 1);  //启动 USART 接收中断
 		}
 }

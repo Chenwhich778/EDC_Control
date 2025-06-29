@@ -3,6 +3,96 @@ SEND_DATA Send_Data;
 RECEIVE_DATA Receive_Data;
 SEND_AutoCharge_DATA Send_AutoCharge_Data;
 
+// 定义环形缓冲区和溢出计数器
+RingBuffer USART1_RxBuffer = {0};
+RingBuffer USART3_RxBuffer = {0};
+volatile uint32_t usart1_overflow_count = 0;
+volatile uint32_t usart3_overflow_count = 0;
+
+void parsePositions(const char *str, float *x_car, float *y_car, float *x_enemy, float *y_enemy);
+void parseCoordinates(const char *str, int *x1, int *y1, int *x2, int *y2, 
+					  int *x3, int *y3, int *x4, int *y4);
+
+// 初始化环形缓冲区
+void RingBuffer_Init(RingBuffer *rb) {
+	rb->head = 0;
+	rb->tail = 0;
+	rb->frame_ready = 0;
+}
+
+// 向缓冲区添加数据，带溢出检测
+uint8_t RingBuffer_Put(RingBuffer *rb, uint8_t data) {
+	uint16_t next_head = (rb->head + 1) % RING_BUF_SIZE;
+	if(next_head == rb->tail) {
+		if(rb == &USART1_RxBuffer) usart1_overflow_count++;
+		else if(rb == &USART3_RxBuffer) usart3_overflow_count++;
+		return 0; // 缓冲区满
+	}
+	rb->buffer[rb->head] = data;
+	rb->head = next_head;
+	return 1;
+}
+
+// 从缓冲区获取数据
+uint8_t RingBuffer_Get(RingBuffer *rb, uint8_t *data) {
+	if(rb->tail == rb->head)
+		return 0; // 缓冲区空
+		
+	*data = rb->buffer[rb->tail];
+	rb->tail = (rb->tail + 1) % RING_BUF_SIZE;
+	return 1;
+}
+
+// 获取可用数据量
+uint16_t RingBuffer_Available(RingBuffer *rb) {
+	if(rb->head >= rb->tail)
+		return rb->head - rb->tail;
+	return RING_BUF_SIZE - rb->tail + rb->head;
+}
+
+// 检查缓冲区是否为空
+uint8_t RingBuffer_IsEmpty(RingBuffer *rb) {
+	return rb->head == rb->tail;
+}
+// 新增环形缓冲区
+
+// USART1 帧处理函数（已禁用）
+void USART1_ProcessFrame(void) {
+	// 串口1接收功能已禁用，保留空实现用于兼容
+}
+
+// USART3 帧处理函数（可同时解析两种数据格式）
+void USART3_ProcessFrame(void) {
+	if(!USART3_RxBuffer.frame_ready) return;
+	uint8_t data;
+	#define FRAME_MAX_LEN 128
+	char frame[FRAME_MAX_LEN];
+	uint16_t index = 0;
+	while(RingBuffer_Get(&USART3_RxBuffer, &data) && index < FRAME_MAX_LEN-1) {
+		if(data == '\n') { frame[index] = '\0'; break; }
+		if(data != '\r') frame[index++] = data;
+	}
+	frame[FRAME_MAX_LEN-1] = '\0';
+	USART3_RxBuffer.frame_ready = 0;
+
+	// 只处理带#或!标志的数据
+	if(frame[0] == '#') {
+		// 解析float型，赋值给X_car/Y_car/X_enemy/Y_enemy
+		
+			parsePositions(frame+1, &X_car, &Y_car, &X_enemy, &Y_enemy);
+		
+	} else if(frame[0] == '!') {
+		
+			parseCoordinates(frame+1, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4);
+		}
+	// 其他情况不赋值
+}
+
+
+float X_car = 3.8,Y_car = 0;
+float X_enemy = 0, Y_enemy = 0;
+char position_str[BUF_SIZE] = {0};
+
 /**************************************************************************
 Function: Usartx3, Usartx1,Usartx5 and CAN send data task 
 Input   : none
@@ -14,12 +104,16 @@ Output  : none
 void data_task(void *pvParameters)
 {
 	 u32 lastWakeTime = getSysTickCnt();
+
+	 // 初始化环形缓冲区
+	RingBuffer_Init(&USART1_RxBuffer);
+	RingBuffer_Init(&USART3_RxBuffer);
 	
    while(1)
-    {	
+	{	
 			//The task is run at 20hz
 			//此任务以20Hz的频率运行
-			vTaskDelayUntil(&lastWakeTime, F2T(RATE_20_HZ));
+			vTaskDelayUntil(&lastWakeTime, F2T(RATE_200_HZ));
 			if(Check==0)
 			{
 				//Assign the data to be sent
@@ -27,9 +121,13 @@ void data_task(void *pvParameters)
 				data_transition(); 
 				USART1_SEND();     //Serial port 1 sends data //串口1发送数据
 				USART3_SEND();     //Serial port 3 (ROS) sends data  //串口3(ROS)发送数据
-				USART5_SEND();		 //Serial port 5 sends data //串口5发送数据
+				// USART5_SEND();		 //Serial port 5 sends data //串口5发送数据
 				USART6_SEND();   //everloss
-				CAN_SEND();        //CAN send data //CAN发送数据	
+				// CAN_SEND();        //CAN send data //CAN发送数据	
+
+				// 处理接收到的数据帧
+				USART1_ProcessFrame();
+				USART3_ProcessFrame();
 			}
 		}
 }
@@ -53,16 +151,16 @@ void data_transition(void)
 	{	
 		case Mec_Car:case Mec_Car_V550:
 			Send_Data.Sensor_Str.X_speed = ((MOTOR_A.Encoder+MOTOR_B.Encoder+MOTOR_C.Encoder+MOTOR_D.Encoder)/4)*1000;
-	    Send_Data.Sensor_Str.Y_speed = ((MOTOR_A.Encoder-MOTOR_B.Encoder+MOTOR_C.Encoder-MOTOR_D.Encoder)/4)*1000; 
-	    Send_Data.Sensor_Str.Z_speed = ((-MOTOR_A.Encoder-MOTOR_B.Encoder+MOTOR_C.Encoder+MOTOR_D.Encoder)/4/(Axle_spacing+Wheel_spacing))*1000;         
+		Send_Data.Sensor_Str.Y_speed = ((MOTOR_A.Encoder-MOTOR_B.Encoder+MOTOR_C.Encoder-MOTOR_D.Encoder)/4)*1000; 
+		Send_Data.Sensor_Str.Z_speed = ((-MOTOR_A.Encoder-MOTOR_B.Encoder+MOTOR_C.Encoder+MOTOR_D.Encoder)/4/(Axle_spacing+Wheel_spacing))*1000;         
 		  break; 
 		
-    case Omni_Car:      
+	case Omni_Car:      
 			Send_Data.Sensor_Str.X_speed = ((MOTOR_C.Encoder-MOTOR_B.Encoder)/2/X_PARAMETER)*1000; 
-	    Send_Data.Sensor_Str.Y_speed = ((MOTOR_A.Encoder*2-MOTOR_B.Encoder-MOTOR_C.Encoder)/3)*1000; 
-	    Send_Data.Sensor_Str.Z_speed = ((MOTOR_A.Encoder+MOTOR_B.Encoder+MOTOR_C.Encoder)/3/Omni_turn_radiaus)*1000;      
+		Send_Data.Sensor_Str.Y_speed = ((MOTOR_A.Encoder*2-MOTOR_B.Encoder-MOTOR_C.Encoder)/3)*1000; 
+		Send_Data.Sensor_Str.Z_speed = ((MOTOR_A.Encoder+MOTOR_B.Encoder+MOTOR_C.Encoder)/3/Omni_turn_radiaus)*1000;      
 		  break; 
-    
+	
 		case Akm_Car:  
 			Send_Data.Sensor_Str.X_speed = ((MOTOR_A.Encoder+MOTOR_B.Encoder)/2)*1000; 
 			Send_Data.Sensor_Str.Y_speed = 0;
@@ -76,9 +174,9 @@ void data_transition(void)
 			break; 
 		
 		case FourWheel_Car:case FourWheel_Car_V550:
-      Send_Data.Sensor_Str.X_speed = ((MOTOR_A.Encoder+MOTOR_B.Encoder+MOTOR_C.Encoder+MOTOR_D.Encoder)/4)*1000; 
-	    Send_Data.Sensor_Str.Y_speed = 0;
-	    Send_Data.Sensor_Str.Z_speed = ((-MOTOR_B.Encoder-MOTOR_A.Encoder+MOTOR_C.Encoder+MOTOR_D.Encoder)/2/(Axle_spacing+Wheel_spacing))*1000;
+	  Send_Data.Sensor_Str.X_speed = ((MOTOR_A.Encoder+MOTOR_B.Encoder+MOTOR_C.Encoder+MOTOR_D.Encoder)/4)*1000; 
+		Send_Data.Sensor_Str.Y_speed = 0;
+		Send_Data.Sensor_Str.Z_speed = ((-MOTOR_B.Encoder-MOTOR_A.Encoder+MOTOR_C.Encoder+MOTOR_D.Encoder)/2/(Axle_spacing+Wheel_spacing))*1000;
 		 break; 
 		
 		case Tank_Car:   
@@ -102,7 +200,7 @@ void data_transition(void)
 		Send_Data.Sensor_Str.Gyroscope.Z_data=imu.gyro.z;  
 	else  
 		//If the robot is static (motor control dislocation), the z-axis is 0
-    //如果机器人是静止的（电机控制位失能），那么发送的Z轴角速度为0		
+	//如果机器人是静止的（电机控制位失能），那么发送的Z轴角速度为0		
 		Send_Data.Sensor_Str.Gyroscope.Z_data=0;        
 	
 	//Battery voltage (this is a thousand times larger floating point number, which will be reduced by a thousand times as well as receiving the data).
@@ -177,6 +275,8 @@ Output  : none
 入口参数：无
 返回  值：无
 **************************************************************************/
+int x1=-1, y1=-1, x2=-1, y2=-1, x3=-1, y3=-1, x4=-1, y4=-1;
+uint16_t turn_time=1;
 void USART1_SEND(void)
 {
   unsigned char i = 0;	
@@ -195,44 +295,9 @@ void USART1_SEND(void)
 //	}	
 	
 	
-	// 新增：直接追加Encoder和Target的原始数值（格式：234.1,250.0\r\n）
-/*    char tempStr[128];
-    snprintf(tempStr, sizeof(tempStr), 
-             "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f\r\n",
-             (float)1000*MOTOR_A.Encoder, (float)1000*MOTOR_A.Target,
-             (float)1000*MOTOR_B.Encoder, (float)1000*MOTOR_B.Target,
-             (float)1000*MOTOR_C.Encoder, (float)1000*MOTOR_C.Target,
-             (float)1000*MOTOR_D.Encoder, (float)1000*MOTOR_D.Target);
-    
-    for(i = 0; tempStr[i] != '\0'; i++)
-    {
-        usart1_send(tempStr[i]);
-    }
-*/
 
-double xSpeed = Send_Data.Sensor_Str.X_speed / 100.0;
-double ySpeed = Send_Data.Sensor_Str.Y_speed / 100.0;
-double zSpeed = Send_Data.Sensor_Str.Z_speed / 100.0;
+// 直接发送字符串和数值，无需snprintf
 
-double xAccel = Send_Data.Sensor_Str.Accelerometer.X_data / 100.0;
-double yAccel = Send_Data.Sensor_Str.Accelerometer.Y_data / 100.0;
-double zAccel = Send_Data.Sensor_Str.Accelerometer.Z_data / 100.0;
-
-double xGyro = Send_Data.Sensor_Str.Gyroscope.X_data / 100.0;
-double yGyro = Send_Data.Sensor_Str.Gyroscope.Y_data / 100.0;
-double zGyro = Send_Data.Sensor_Str.Gyroscope.Z_data / 100.0;
-
-char tempStr[128];
-snprintf(tempStr, sizeof(tempStr), 
-        "v:%.1f,%.1f,%.1f,a:%.1f,%.1f,%.1f,g:%.1f,%.1f,%.1f\r\n",
-        xSpeed, ySpeed, zSpeed,
-        xAccel, yAccel, zAccel,
-        xGyro, yGyro, zGyro
-);
-for(i = 0; tempStr[i] != '\0'; i++)
-    {
-        usart1_send(tempStr[i]);
-    }
 }
 /**************************************************************************
 Function: Serial port 3 sends data
@@ -244,38 +309,43 @@ Output  : none
 **************************************************************************/
 void USART3_SEND(void)
 {
-  unsigned char i = 0;	
-	for(i=0; i<24; i++)
-	{
-		usart3_send(Send_Data.buffer[i]);
-	}	 
-	if(Get_Charging_HardWare==1)
-	{
-		//存在回充装备时，向上层发送自动回充相关变量
-		for(i=0; i<8; i++)
-		{
-			usart3_send(Send_AutoCharge_Data.buffer[i]);
-		}	
-	}
+//   usart1_send('c');
+usart3_send('o');
+usart3_send('o');
+usart3_send('r');
+usart3_send('d');
+usart3_send(':');
+// 发送servo[1]的数值（假设为正整数，最大4位）
+int value = servo[1];
+if (value < 0) {
+	usart3_send('-');
+	value = -value;
+}
+if (value >= 1000) usart3_send('0' + (value / 1000) % 10);
+if (value >= 100)  usart3_send('0' + (value / 100) % 10);
+if (value >= 10)   usart3_send('0' + (value / 10) % 10);
+usart3_send('0' + (value % 10));
+usart3_send('\r');
+usart3_send('\n');
 }
 void USART3_Return(void)
 {
-	for(int i=0; i<message_count; i++)
-	{
-		usart3_send(uart3_receive_message[i]);
-	}
-	usart3_send('\r');
-	usart3_send('\n');
+	// for(int i=0; i<message_count; i++)
+	// {
+	// 	usart3_send(uart3_receive_message[i]);
+	// }
+	// usart3_send('\r');
+	// usart3_send('\n');
 }
 void USART2_Return(void)
 {
-	printf("{#");
-	for(int i=0; i<app_count; i++)
-	{
-		printf("%c",uart2_receive_message[i]);
-	}
-	printf("}$");
-	printf("\r\n");
+	// printf("{#");
+	// for(int i=0; i<app_count; i++)
+	// {
+	// 	printf("%c",uart2_receive_message[i]);
+	// }
+	// printf("}$");
+	// printf("\r\n");
 }
 /**************************************************************************
 Function: Serial port 5 sends data
@@ -287,19 +357,19 @@ Output  : none
 **************************************************************************/
 void USART5_SEND(void)
 {
-  unsigned char i = 0;	
-	for(i=0; i<24; i++)
-	{
-		usart5_send(Send_Data.buffer[i]);
-	}	 
-	if(Get_Charging_HardWare==1)
-	{
-		//存在回充装备时，向上层发送自动回充相关变量
-		for(i=0; i<8; i++)
-		{
-			usart5_send(Send_AutoCharge_Data.buffer[i]);
-		}	
-	}
+//   unsigned char i = 0;	
+// 	for(i=0; i<24; i++)
+// 	{
+// 		usart5_send(Send_Data.buffer[i]);
+// 	}	 
+// 	if(Get_Charging_HardWare==1)
+// 	{
+// 		//存在回充装备时，向上层发送自动回充相关变量
+// 		for(i=0; i<8; i++)
+// 		{
+// 			usart5_send(Send_AutoCharge_Data.buffer[i]);
+// 		}	
+// 	}
 }
 /**************************************************************************
 Function: Serial port 5 sends data
@@ -309,40 +379,30 @@ Output  : none
 入口参数：无
 返回  值：无
 **************************************************************************/
-char current_coord[BUF_SIZE]= {"xiangwan stupid donkey"};
-int x1=-1, y1=-1, x2=-1, y2=-1, x3=-1, y3=-1, x4=-1, y4=-1;
-uint16_t turn_time=1;
 
 
-void parseCoordinates(const char *str, int *x1, int *y1, int *x2, int *y2, 
-                      int *x3, int *y3, int *x4, int *y4);
 
 void USART6_SEND(void)
 {
 		
-		if (coord_updated) {
-            strncpy(current_coord, coord, BUF_SIZE);
-            coord_updated = 0;
-            
-            // 解析新坐标
-            parseCoordinates(current_coord, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4);
+		  
 			if(x1==0&&x3==0){										
-		    find_target=0;
+			find_target=0;
 				laser_y=540;
 			}
 		  else{
 			  find_target=1;
-				float tmp=powf(((y4+y3-y1-y2)/2),2)*0.0023;
-				if(tmp<100&&float_abs(laser_y-520-tmp)<50)
-          laser_y=520+tmp;
+				//float tmp=powf(((y4+y3-y1-y2)/2),2)*0.0023;
+				//if(tmp<100&&float_abs(laser_y-520-tmp)<50)
+		  //laser_y=520+tmp;
 			}
-		}
+		
 		//laser_track(x1,y1,x2,y2,x3,y3,x4,y4);
 		
 		if(turn_time==0){
 		  laser_track(x1,y1,x2,y2,x3,y3,x4,y4);
 			turn_time=1;
-		}   	
+		}   
 	
 	
 //  unsigned char i = 0;
@@ -380,28 +440,28 @@ Output  : none
 **************************************************************************/
 void CAN_SEND(void) 
 {
-	u8 CAN_SENT[8],i;
+	// u8 CAN_SENT[8],i;
 	
-	for(i=0;i<8;i++)
-	{
-	  CAN_SENT[i]=Send_Data.buffer[i];
-	}
-	CAN1_Send_Num(0x101,CAN_SENT);
+	// for(i=0;i<8;i++)
+	// {
+	//   CAN_SENT[i]=Send_Data.buffer[i];
+	// }
+	// CAN1_Send_Num(0x101,CAN_SENT);
 	
-	for(i=0;i<8;i++)
-	{
-	  CAN_SENT[i]=Send_Data.buffer[i+8];
-	}
-	CAN1_Send_Num(0x102,CAN_SENT);
+	// for(i=0;i<8;i++)
+	// {
+	//   CAN_SENT[i]=Send_Data.buffer[i+8];
+	// }
+	// CAN1_Send_Num(0x102,CAN_SENT);
 	
-	for(i=0;i<8;i++)
-	{
-	  CAN_SENT[i]=Send_Data.buffer[i+16];
-	}
-	CAN1_Send_Num(0x103,CAN_SENT);
+	// for(i=0;i<8;i++)
+	// {
+	//   CAN_SENT[i]=Send_Data.buffer[i+16];
+	// }
+	// CAN1_Send_Num(0x103,CAN_SENT);
 	
-	//////////////////自动回充相关数据发送//////////////////
-	if(Get_Charging_HardWare) CAN_Send_AutoRecharge();
+	// //////////////////自动回充相关数据发送//////////////////
+	// if(Get_Charging_HardWare) CAN_Send_AutoRecharge();
 }
 /**************************************************************************
 Function: Serial port 1 initialization
@@ -431,16 +491,16 @@ void uart1_init(u32 bound)
 	GPIO_Init(GPIOA, &GPIO_InitStructure);  		          //初始化
 	
   //UsartNVIC configuration //UsartNVIC配置
-	NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
-	//Preempt priority //抢占优先级
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority=1 ;
-	//Subpriority //子优先级
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;		
-	//Enable the IRQ channel //IRQ通道使能
-	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;	
+  NVIC_InitStructure.NVIC_IRQChannel = USART1_IRQn;
+  //Preempt priority //抢占优先级（数值越大优先级越低，建议6）
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority=6;
+  //Subpriority //子优先级
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+  //Enable the IRQ channel //IRQ通道使能
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
   //Initialize the VIC register with the specified parameters 
-	//根据指定的参数初始化VIC寄存器	
-	NVIC_Init(&NVIC_InitStructure);	
+  //根据指定的参数初始化VIC寄存器	
+  NVIC_Init(&NVIC_InitStructure);	
 	
   //USART Initialization Settings 初始化设置
 	USART_InitStructure.USART_BaudRate = bound; //Port rate //串口波特率
@@ -453,6 +513,9 @@ void uart1_init(u32 bound)
 	
 	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE); //Open the serial port to accept interrupts //开启串口接受中断
 	USART_Cmd(USART1, ENABLE);                     //Enable serial port 1 //使能串口1
+
+	// 在初始化末尾添加缓冲区初始化
+	RingBuffer_Init(&USART1_RxBuffer);  //everloss//
 }
 /**************************************************************************
 Function: Serial port 2 initialization
@@ -534,15 +597,15 @@ void uart3_init(u32 bound)
 	
   //UsartNVIC configuration //UsartNVIC配置
   NVIC_InitStructure.NVIC_IRQChannel = USART3_IRQn;
-	//Preempt priority //抢占优先级
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority=2 ;
-	//Preempt priority //抢占优先级
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;		
-	//Enable the IRQ channel //IRQ通道使能	
-	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;	
-  //Initialize the VIC register with the specified parameters 
-	//根据指定的参数初始化VIC寄存器		
-	NVIC_Init(&NVIC_InitStructure);
+  //Preempt priority //抢占优先级（数值越大优先级越低，建议6）
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority=6;
+  //Subpriority //子优先级
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+  //Enable the IRQ channel //IRQ通道使能	
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+  //Initialize the VIC register with the specified参数
+  //根据指定的参数初始化VIC寄存器		
+  NVIC_Init(&NVIC_InitStructure);
 	
   //USART Initialization Settings 初始化设置
 	USART_InitStructure.USART_BaudRate = bound; //Port rate //串口波特率
@@ -555,6 +618,8 @@ void uart3_init(u32 bound)
 	
   USART_ITConfig(USART3, USART_IT_RXNE, ENABLE); //Open the serial port to accept interrupts //开启串口接受中断
   USART_Cmd(USART3, ENABLE);                     //Enable serial port 3 //使能串口3 
+  // 在初始化末尾添加缓冲区初始化
+	RingBuffer_Init(&USART3_RxBuffer);//everloss//
 }
 /**************************************************************************
 Function: Serial port 5 initialization
@@ -626,47 +691,47 @@ Output  : none                                              usart6堂堂登场
 **************************************************************************/
 void uart6_init(u32 bound)
 {
-    GPIO_InitTypeDef GPIO_InitStructure;
-    USART_InitTypeDef USART_InitStructure;
-    NVIC_InitTypeDef NVIC_InitStructure;
-    
-    // 1. 使能GPIOC和USART6时钟
-    RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
-    RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART6, ENABLE);
-    
-    // 2. 配置GPIO复用功能
-    GPIO_PinAFConfig(GPIOC, GPIO_PinSource6, GPIO_AF_USART6);  // TX: PC6
-    GPIO_PinAFConfig(GPIOC, GPIO_PinSource7, GPIO_AF_USART6);  // RX: PC7
-    
-    // 3. 配置GPIO
-    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;           // 复用模式
-    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;         // 推挽输出
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;      // 高速50MHz
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;           // 上拉
-    GPIO_Init(GPIOC, &GPIO_InitStructure);
-    
-    // 4. 配置USART6中断优先级
-    NVIC_InitStructure.NVIC_IRQChannel = USART6_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;  // 抢占优先级
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;         // 子优先级
-    NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;            // IRQ通道使能
-    NVIC_Init(&NVIC_InitStructure);
-    
-    // 5. 配置USART6参数
-    USART_InitStructure.USART_BaudRate = bound;               // 波特率
-    USART_InitStructure.USART_WordLength = USART_WordLength_8b; // 8位数据
-    USART_InitStructure.USART_StopBits = USART_StopBits_1;    // 1个停止位
-    USART_InitStructure.USART_Parity = USART_Parity_No;       // 无奇偶校验
-    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None; // 无硬件流控
-    USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx; // 收发模式
-    USART_Init(USART6, &USART_InitStructure);
-    
-    // 6. 使能接收中断
-    USART_ITConfig(USART6, USART_IT_RXNE, ENABLE);
-    
-    // 7. 使能USART6
-    USART_Cmd(USART6, ENABLE);
+	GPIO_InitTypeDef GPIO_InitStructure;
+	USART_InitTypeDef USART_InitStructure;
+	NVIC_InitTypeDef NVIC_InitStructure;
+	
+	// 1. 使能GPIOC和USART6时钟
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART6, ENABLE);
+	
+	// 2. 配置GPIO复用功能
+	GPIO_PinAFConfig(GPIOC, GPIO_PinSource6, GPIO_AF_USART6);  // TX: PC6
+	GPIO_PinAFConfig(GPIOC, GPIO_PinSource7, GPIO_AF_USART6);  // RX: PC7
+	
+	// 3. 配置GPIO
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;           // 复用模式
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;         // 推挽输出
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;      // 高速50MHz
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_UP;           // 上拉
+	GPIO_Init(GPIOC, &GPIO_InitStructure);
+	
+	// 4. 配置USART6中断优先级
+	NVIC_InitStructure.NVIC_IRQChannel = USART6_IRQn;
+	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 2;  // 抢占优先级
+	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;         // 子优先级
+	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;            // IRQ通道使能
+	NVIC_Init(&NVIC_InitStructure);
+	
+	// 5. 配置USART6参数
+	USART_InitStructure.USART_BaudRate = bound;               // 波特率
+	USART_InitStructure.USART_WordLength = USART_WordLength_8b; // 8位数据
+	USART_InitStructure.USART_StopBits = USART_StopBits_1;    // 1个停止位
+	USART_InitStructure.USART_Parity = USART_Parity_No;       // 无奇偶校验
+	USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None; // 无硬件流控
+	USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx; // 收发模式
+	USART_Init(USART6, &USART_InitStructure);
+	
+	// 6. 使能接收中断
+	USART_ITConfig(USART6, USART_IT_RXNE, ENABLE);
+	
+	// 7. 使能USART6
+	USART_Cmd(USART6, ENABLE);
 }
 /**************************************************************************
 Function: Serial port 1 receives interrupted
@@ -678,37 +743,18 @@ Output  : none
 **************************************************************************/	
 	int USART1_IRQHandler(void)
 {	
-    // 外部定义的缓冲区（在文件作用域）
-    extern char coord[BUF_SIZE];
-    static uint16_t coord_index = 0;  // 静态索引，仅在中断内可见
-
-    if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET)
-    {
-        u8 Usart_Receive = USART_ReceiveData(USART1);
-        
-        // 开机延迟处理（可选保留）
-        if(SysVal.Time_count < CONTROL_DELAY) {
-            return 0;
-        }
-        
-        // 将数据存入外部缓冲区
-        if(coord_index < BUF_SIZE - 1) {
-            coord[coord_index] = (char)Usart_Receive;
-            coord_index++;
-            
-            // 可选：检测结束符并重置索引
-            // if(Usart_Receive == FRAME_TAIL) {
-            //     coord_index = 0; // 准备接收新数据
-            // }
-        }
-        else {
-            // 缓冲区满处理 - 重置索引（循环缓冲区）
-            coord_index = 0;
-            coord[coord_index] = (char)Usart_Receive;
-            coord_index++;
-        }
-    }
-    return 0;	
+	if(USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) {
+		uint8_t data = USART_ReceiveData(USART1);
+		
+		// 只做最少的工作：存储数据和标记帧结束
+		if(data == '\n') {
+			USART1_RxBuffer.frame_ready = 1;
+		}
+		
+		// 将数据放入环形缓冲区
+		RingBuffer_Put(&USART1_RxBuffer, data);
+	}
+	return 0;    
 }
 		
 /**************************************************************************
@@ -738,85 +784,85 @@ static uint8_t ATCommandFeedBack_BT04A(uint8_t recv)
 	
 	static uint8_t statemachine = BT04A_NORMAL;
 	
-	switch( statemachine )
-	{
-		case BT04A_NORMAL:
-			if( recv=='C'&&lastrecv=='+' )
-			{
-				statemachine = BT04A_CONNECTSTART;//接收到特征值,开始匹配
-				isFilter = 1;//过滤字符
-				filterIndex = 2; //2号开始索引
-			}
-			else if( recv=='D'&&lastrecv=='+' )
-			{
-				statemachine = BT04A_DISCONNECTSTART;//接收到特征值,开始匹配
-				isFilter = 1;//过滤字符
-				filterIndex = 2; //2号开始索引
-			}
-			break;
-		case BT04A_CONNECTSTART:
-			if( BT04AConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
-			{
-				isFilter = 1;//匹配连接字段,若完成匹配则过滤
+	// switch( statemachine )
+	// {
+	// 	case BT04A_NORMAL:
+	// 		if( recv=='C'&&lastrecv=='+' )
+	// 		{
+	// 			statemachine = BT04A_CONNECTSTART;//接收到特征值,开始匹配
+	// 			isFilter = 1;//过滤字符
+	// 			filterIndex = 2; //2号开始索引
+	// 		}
+	// 		else if( recv=='D'&&lastrecv=='+' )
+	// 		{
+	// 			statemachine = BT04A_DISCONNECTSTART;//接收到特征值,开始匹配
+	// 			isFilter = 1;//过滤字符
+	// 			filterIndex = 2; //2号开始索引
+	// 		}
+	// 		break;
+	// 	case BT04A_CONNECTSTART:
+	// 		if( BT04AConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
+	// 		{
+	// 			isFilter = 1;//匹配连接字段,若完成匹配则过滤
 				
-				#if 1== DEBUG_BT04ACommand 
-				printf("yes:%c\r\n",recv);
-				#endif
-			}
-			else if( (filterIndex>=13&&filterIndex<=29) && \
-       				  ((recv>='0'&&recv<='9')||(recv>='a'&&recv<='z')) )//进入到MAC地址匹配阶段.该阶段匹配 0~9 、a~z字段
-			{
-				isFilter = 1;//MAC地址过滤
-				#if 1== DEBUG_BT04ACommand 
-				printf("yes:%c\r\n",recv);
-				#endif
-			}
-			else
-			{
-				//都不满足,允许字符通过.并退出过滤模式
-				statemachine = BT04A_NORMAL;
-				#if 1== DEBUG_BT04ACommand 
-				printf("No:get:%c,but:%c\r\n",recv,BT04AConnect[filterIndex]);
-				#endif
-			}
+	// 			#if 1== DEBUG_BT04ACommand 
+	// 			printf("yes:%c\r\n",recv);
+	// 			#endif
+	// 		}
+	// 		else if( (filterIndex>=13&&filterIndex<=29) && \
+	//    				  ((recv>='0'&&recv<='9')||(recv>='a'&&recv<='z')) )//进入到MAC地址匹配阶段.该阶段匹配 0~9 、a~z字段
+	// 		{
+	// 			isFilter = 1;//MAC地址过滤
+	// 			#if 1== DEBUG_BT04ACommand 
+	// 			printf("yes:%c\r\n",recv);
+	// 			#endif
+	// 		}
+	// 		else
+	// 		{
+	// 			//都不满足,允许字符通过.并退出过滤模式
+	// 			statemachine = BT04A_NORMAL;
+	// 			#if 1== DEBUG_BT04ACommand 
+	// 			printf("No:get:%c,but:%c\r\n",recv,BT04AConnect[filterIndex]);
+	// 			#endif
+	// 		}
 			
-			//索引直至完成过滤列表
-			filterIndex++;
-			if( filterIndex == strlen(BT04AConnect) )
-			{
-				statemachine = BT04A_NORMAL;
-				#if 1== DEBUG_BT04ACommand 
-				printf("filter con done!\r\n");
-				#endif
-			}
-			break;
-		case BT04A_DISCONNECTSTART:
-			if( BT04ADisConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
-			{
-				isFilter = 1;//匹配连接字段,若完成匹配则过滤
-				#if 1== DEBUG_BT04ACommand 
-				printf("yes:%c\r\n",recv);
-				#endif
-			}
-			else
-			{
-				statemachine = BT04A_NORMAL;
-				#if 1== DEBUG_BT04ACommand
-				printf("No:get:%c,but:%c\r\n",recv,BT04ADisConnect[filterIndex]);
-				#endif
-			}				
+	// 		//索引直至完成过滤列表
+	// 		filterIndex++;
+	// 		if( filterIndex == strlen(BT04AConnect) )
+	// 		{
+	// 			statemachine = BT04A_NORMAL;
+	// 			#if 1== DEBUG_BT04ACommand 
+	// 			printf("filter con done!\r\n");
+	// 			#endif
+	// 		}
+	// 		break;
+	// 	case BT04A_DISCONNECTSTART:
+	// 		if( BT04ADisConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
+	// 		{
+	// 			isFilter = 1;//匹配连接字段,若完成匹配则过滤
+	// 			#if 1== DEBUG_BT04ACommand 
+	// 			printf("yes:%c\r\n",recv);
+	// 			#endif
+	// 		}
+	// 		else
+	// 		{
+	// 			statemachine = BT04A_NORMAL;
+	// 			#if 1== DEBUG_BT04ACommand
+	// 			printf("No:get:%c,but:%c\r\n",recv,BT04ADisConnect[filterIndex]);
+	// 			#endif
+	// 		}				
 			
-			//索引直至完成过滤列表
-			filterIndex++;
-			if( filterIndex == strlen(BT04ADisConnect) ) 
-			{
-				statemachine = BT04A_NORMAL;
-				#if 1== DEBUG_BT04ACommand
-				printf("filter dis done!\r\n");
-				#endif
-			}
-			break;
-	}
+	// 		//索引直至完成过滤列表
+	// 		filterIndex++;
+	// 		if( filterIndex == strlen(BT04ADisConnect) ) 
+	// 		{
+	// 			statemachine = BT04A_NORMAL;
+	// 			#if 1== DEBUG_BT04ACommand
+	// 			printf("filter dis done!\r\n");
+	// 			#endif
+	// 		}
+	// 		break;
+	// }
 	lastrecv = recv;
 	
 	return isFilter;
@@ -844,122 +890,122 @@ static uint8_t ATCommandFeedBack_JDY33(uint8_t recv)
 	
 	static uint8_t statemachine = JDY33_NORMAL;
 	
-	switch( statemachine )
-	{
-		case JDY33_NORMAL:
-			if( recv=='C'&&lastrecv=='+' )
-			{
-				statemachine = JDY33_SPPCONNECTSTART;//接收到特征值,开始匹配
-				isFilter = 1;//过滤字符
-				filterIndex = 2; //2号开始索引
-			}
-			else if( recv=='O'&&lastrecv=='C' )
-			{
-				statemachine = JDY33_BLECONNECTSTART;//接收到特征值,开始匹配
-				isFilter = 1;//过滤字符
-				filterIndex = 2; //2号开始索引
-			}
-			else if( recv=='D'&&lastrecv=='+' )
-			{
-				statemachine = JDY33_DISCONNECTSTART;//接收到特征值,开始匹配
-				isFilter = 1;//过滤字符
-				filterIndex = 2; //2号开始索引
-			}
-			else if( recv=='C'&&lastrecv!='C' )//进入状态的判断优先,再到歧义的判断
-			{
-				//有关C的歧义,"+C"、"CO"不能通过. "?C也不允许通过",才能保证连接时不存在控制命令,若需要控制小车,需要连续的C
-				isFilter = 1;//禁止通过
-			}
-			break;
-		case JDY33_SPPCONNECTSTART:
-			if( JDY33_SPPConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
-			{
-				isFilter = 1;//匹配连接字段,若完成匹配则过滤
+	// switch( statemachine )
+	// {
+	// 	case JDY33_NORMAL:
+	// 		if( recv=='C'&&lastrecv=='+' )
+	// 		{
+	// 			statemachine = JDY33_SPPCONNECTSTART;//接收到特征值,开始匹配
+	// 			isFilter = 1;//过滤字符
+	// 			filterIndex = 2; //2号开始索引
+	// 		}
+	// 		else if( recv=='O'&&lastrecv=='C' )
+	// 		{
+	// 			statemachine = JDY33_BLECONNECTSTART;//接收到特征值,开始匹配
+	// 			isFilter = 1;//过滤字符
+	// 			filterIndex = 2; //2号开始索引
+	// 		}
+	// 		else if( recv=='D'&&lastrecv=='+' )
+	// 		{
+	// 			statemachine = JDY33_DISCONNECTSTART;//接收到特征值,开始匹配
+	// 			isFilter = 1;//过滤字符
+	// 			filterIndex = 2; //2号开始索引
+	// 		}
+	// 		else if( recv=='C'&&lastrecv!='C' )//进入状态的判断优先,再到歧义的判断
+	// 		{
+	// 			//有关C的歧义,"+C"、"CO"不能通过. "?C也不允许通过",才能保证连接时不存在控制命令,若需要控制小车,需要连续的C
+	// 			isFilter = 1;//禁止通过
+	// 		}
+	// 		break;
+	// 	case JDY33_SPPCONNECTSTART:
+	// 		if( JDY33_SPPConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
+	// 		{
+	// 			isFilter = 1;//匹配连接字段,若完成匹配则过滤
 				
-				#if 1== DEBUG_JDY33Command 
-				printf("yes:%c\r\n",recv);
-				#endif
-			}
-			else if( (filterIndex>=13&&filterIndex<=29) && \
-       				  ((recv>='0'&&recv<='9')||(recv>='A'&&recv<='Z')) )//进入到MAC地址匹配阶段.该阶段匹配 0~9 、a~z字段
-			{
-				isFilter = 1;//MAC地址过滤
-				#if 1== DEBUG_JDY33Command 
-				printf("yes:%c\r\n",recv);
-				#endif
-			}
-			else
-			{
-				//都不满足,允许字符通过.并退出过滤模式
-				statemachine = JDY33_NORMAL;
-				#if 1== DEBUG_JDY33Command 
-				printf("SPP->No:get:%c,but:%c\r\n",recv,JDY33_SPPConnect[filterIndex]);
-				#endif
-			}
+	// 			#if 1== DEBUG_JDY33Command 
+	// 			printf("yes:%c\r\n",recv);
+	// 			#endif
+	// 		}
+	// 		else if( (filterIndex>=13&&filterIndex<=29) && \
+	//    				  ((recv>='0'&&recv<='9')||(recv>='A'&&recv<='Z')) )//进入到MAC地址匹配阶段.该阶段匹配 0~9 、a~z字段
+	// 		{
+	// 			isFilter = 1;//MAC地址过滤
+	// 			#if 1== DEBUG_JDY33Command 
+	// 			printf("yes:%c\r\n",recv);
+	// 			#endif
+	// 		}
+	// 		else
+	// 		{
+	// 			//都不满足,允许字符通过.并退出过滤模式
+	// 			statemachine = JDY33_NORMAL;
+	// 			#if 1== DEBUG_JDY33Command 
+	// 			printf("SPP->No:get:%c,but:%c\r\n",recv,JDY33_SPPConnect[filterIndex]);
+	// 			#endif
+	// 		}
 			
-			//索引直至完成过滤列表
-			filterIndex++;
-			if( filterIndex == strlen(JDY33_SPPConnect) )
-			{
-				statemachine = JDY33_NORMAL;
-				#if 1== DEBUG_JDY33Command 
-				printf("SPP filter con done!\r\n");
-				#endif
-			}
-			break;
-		case JDY33_BLECONNECTSTART:
-			if( JDY33_BLEConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
-			{
-				isFilter = 1;//匹配连接字段,若完成匹配则过滤
-				#if 1== DEBUG_JDY33Command 
-				printf("yes:%c\r\n",recv);
-				#endif
-			}
-			else
-			{
-				statemachine = JDY33_NORMAL;
-				#if 1== DEBUG_JDY33Command
-				printf("BLE->No:get:%c,but:%c\r\n",recv,JDY33_BLEConnect[filterIndex]);
-				#endif
-			}				
+	// 		//索引直至完成过滤列表
+	// 		filterIndex++;
+	// 		if( filterIndex == strlen(JDY33_SPPConnect) )
+	// 		{
+	// 			statemachine = JDY33_NORMAL;
+	// 			#if 1== DEBUG_JDY33Command 
+	// 			printf("SPP filter con done!\r\n");
+	// 			#endif
+	// 		}
+	// 		break;
+	// 	case JDY33_BLECONNECTSTART:
+	// 		if( JDY33_BLEConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
+	// 		{
+	// 			isFilter = 1;//匹配连接字段,若完成匹配则过滤
+	// 			#if 1== DEBUG_JDY33Command 
+	// 			printf("yes:%c\r\n",recv);
+	// 			#endif
+	// 		}
+	// 		else
+	// 		{
+	// 			statemachine = JDY33_NORMAL;
+	// 			#if 1== DEBUG_JDY33Command
+	// 			printf("BLE->No:get:%c,but:%c\r\n",recv,JDY33_BLEConnect[filterIndex]);
+	// 			#endif
+	// 		}				
 			
-			//索引直至完成过滤列表
-			filterIndex++;
-			if( filterIndex == strlen(JDY33_BLEConnect) ) 
-			{
-				statemachine = JDY33_NORMAL;
-				#if 1== DEBUG_JDY33Command
-				printf("ble filter dis done!\r\n");
-				#endif
-			}
-			break;
-		case JDY33_DISCONNECTSTART:
-			if( JDY33_DisConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
-			{
-				isFilter = 1;//匹配连接字段,若完成匹配则过滤
-				#if 1== DEBUG_JDY33Command 
-				printf("yes:%c\r\n",recv);
-				#endif
-			}
-			else
-			{
-				statemachine = JDY33_NORMAL;
-				#if 1== DEBUG_JDY33Command
-				printf("dis->No:get:%c,but:%c\r\n",recv,JDY33_DisConnect[filterIndex]);
-				#endif
-			}				
+	// 		//索引直至完成过滤列表
+	// 		filterIndex++;
+	// 		if( filterIndex == strlen(JDY33_BLEConnect) ) 
+	// 		{
+	// 			statemachine = JDY33_NORMAL;
+	// 			#if 1== DEBUG_JDY33Command
+	// 			printf("ble filter dis done!\r\n");
+	// 			#endif
+	// 		}
+	// 		break;
+	// 	case JDY33_DISCONNECTSTART:
+	// 		if( JDY33_DisConnect[filterIndex] == recv )  //开始过滤连接字符,逐个字节匹配
+	// 		{
+	// 			isFilter = 1;//匹配连接字段,若完成匹配则过滤
+	// 			#if 1== DEBUG_JDY33Command 
+	// 			printf("yes:%c\r\n",recv);
+	// 			#endif
+	// 		}
+	// 		else
+	// 		{
+	// 			statemachine = JDY33_NORMAL;
+	// 			#if 1== DEBUG_JDY33Command
+	// 			printf("dis->No:get:%c,but:%c\r\n",recv,JDY33_DisConnect[filterIndex]);
+	// 			#endif
+	// 		}				
 			
-			//索引直至完成过滤列表
-			filterIndex++;
-			if( filterIndex == strlen(JDY33_DisConnect)+1 ) //+1为补充空字符'\0'
-			{
-				statemachine = JDY33_NORMAL;
-				#if 1== DEBUG_JDY33Command
-				printf("filter dis done!\r\n");
-				#endif
-			}
-			break;
-	}
+	// 		//索引直至完成过滤列表
+	// 		filterIndex++;
+	// 		if( filterIndex == strlen(JDY33_DisConnect)+1 ) //+1为补充空字符'\0'
+	// 		{
+	// 			statemachine = JDY33_NORMAL;
+	// 			#if 1== DEBUG_JDY33Command
+	// 			printf("filter dis done!\r\n");
+	// 			#endif
+	// 		}
+	// 		break;
+	// }
 	lastrecv = recv;
 	
 	return isFilter;
@@ -998,14 +1044,14 @@ int USART2_IRQHandler(void)
 			//开机10秒之后，按下APP的前进键进入APP控制模式
 		  //APP控制标志位置1，其它标志位置0
 			PS2_ON_Flag=0,Remote_ON_Flag=0,APP_ON_Flag=1,CAN_ON_Flag=0,Usart1_ON_Flag=0,Usart5_ON_Flag=0;
-    Last_Usart_Receive=Usart_Receive;			
+	Last_Usart_Receive=Usart_Receive;			
 	  
 		if(Usart_Receive==0x4B) 
 			//Enter the APP steering control interface
 		  //进入APP转向控制界面
 			Turn_Flag=1;  
 	  else	if(Usart_Receive==0x49||Usart_Receive==0x4A) 
-      // Enter the APP direction control interface		
+	  // Enter the APP direction control interface		
 			//进入APP方向控制界面	
 			Turn_Flag=0;	
 		
@@ -1070,9 +1116,9 @@ int USART2_IRQHandler(void)
 					 case 0x37:  break;
 					 case 0x38:  break; 	
 				 }
-      }		
-      //Relevant flag position is cleared			
-      //相关标志位清零			
+	  }		
+	  //Relevant flag position is cleared			
+	  //相关标志位清零			
 			Flag_PID=0;
 			i=0;
 			j=0;
@@ -1111,107 +1157,18 @@ Output  : none
 **************************************************************************/
 int USART3_IRQHandler(void)
 {	
-	static u8 Count=0;
-	u8 Usart_Receive;
-
-	if(USART_GetITStatus(USART3, USART_IT_RXNE) != RESET) //Check if data is received //判断是否接收到数据
-	{
-		Usart_Receive = USART_ReceiveData(USART3);//Read the data //读取数据
+	if(USART_GetITStatus(USART3, USART_IT_RXNE) != RESET) {
+		uint8_t data = USART_ReceiveData(USART3);
 		
-		if(SysVal.Time_count<CONTROL_DELAY)
-			// Data is not processed until 10 seconds after startup
-		  //开机10秒前不处理数据
-		  return 0;	
-		if(Check==0)
-		{
-		//Fill the array with serial data
-		//串口数据填入数组
-    Receive_Data.buffer[Count]=Usart_Receive;
-		
-		// Ensure that the first data in the array is FRAME_HEADER
-		//确保数组第一个数据为FRAME_HEADER
-		if(Usart_Receive == FRAME_HEADER||Count>0) 
-			Count++; 
-		else 
-			Count=0;
-		
-		if (Count == 11) //Verify the length of the packet //验证数据包的长度
-		{   
-				Count=0; //Prepare for the serial port data to be refill into the array //为串口数据重新填入数组做准备
-				if(Receive_Data.buffer[10] == FRAME_TAIL) //Verify the frame tail of the packet //验证数据包的帧尾
-				{
-					//Data exclusionary or bit check calculation, mode 0 is sent data check
-					//数据异或位校验计算，模式0是发送数据校验
-					if(Receive_Data.buffer[9] ==Check_Sum(9,0))	 
-				  {	
-						float Vz;		
-						if( Receive_Data.buffer[1]==0 )
-						{			
-							Allow_Recharge=0; //关闭自动回充，接收正常数据
-							//All modes flag position 0, USART3 control mode
-							//所有模式标志位置0，为Usart3控制模式						
-							PS2_ON_Flag=0;
-							Remote_ON_Flag=0;
-							APP_ON_Flag=0;
-							CAN_ON_Flag=0;
-							Usart1_ON_Flag=0;
-							Usart5_ON_Flag=0;
-							command_lost_count=0;
-							//Calculate the target speed of three axis from serial data, unit m/s
-							//从串口数据求三轴目标速度， 单位m/s
-							Move_X=XYZ_Target_Speed_transition(Receive_Data.buffer[3],Receive_Data.buffer[4]);
-							Move_Y=XYZ_Target_Speed_transition(Receive_Data.buffer[5],Receive_Data.buffer[6]);
-							Vz    =XYZ_Target_Speed_transition(Receive_Data.buffer[7],Receive_Data.buffer[8]);
-							if(Car_Mode==Akm_Car)
-							{
-								Move_Z=Vz_to_Akm_Angle(Move_X, Vz);
-							}
-							else
-							{
-								Move_Z=Vz;
-							}		
-						}
-						else if( Receive_Data.buffer[1]==1 || Receive_Data.buffer[1]==2 )
-						{
-							Allow_Recharge=1; //开启自动回充
-							if(Receive_Data.buffer[1]==1 && RED_STATE==0) nav_walk=1; //开启自动回充，上位机控制机器人
-							
-							//Calculate the target speed of three axis from serial data, unit m/s
-							//从串口数据求三轴目标速度，单位m/s
-							Recharge_UP_Move_X=XYZ_Target_Speed_transition(Receive_Data.buffer[3],Receive_Data.buffer[4]);
-							Recharge_UP_Move_Y=XYZ_Target_Speed_transition(Receive_Data.buffer[5],Receive_Data.buffer[6]);
-							Vz = XYZ_Target_Speed_transition(Receive_Data.buffer[7],Receive_Data.buffer[8]);	
-							if(Car_Mode==Akm_Car)
-							{
-								Recharge_UP_Move_Z=Vz_to_Akm_Angle(Recharge_UP_Move_X, Vz);
-							}
-							else
-								Recharge_UP_Move_Z = Vz;
-						}
-						else if( Receive_Data.buffer[1]==3 )
-						{
-							//Set the speed of the infrared interconnection, unit m/s
-							//设置红外对接的速度大小，单位m/s
-							Red_Docker_X=XYZ_Target_Speed_transition(Receive_Data.buffer[3],Receive_Data.buffer[4]);
-							Red_Docker_Y=XYZ_Target_Speed_transition(Receive_Data.buffer[5],Receive_Data.buffer[6]);
-							Red_Docker_Z=XYZ_Target_Speed_transition(Receive_Data.buffer[7],Receive_Data.buffer[8]);	
-						}
-				  }
-			}
+		// 只做最少的工作：存储数据和标记帧结束
+		if(data == '\n') {
+			USART3_RxBuffer.frame_ready = 1;
 		}
+		
+		// 将数据放入环形缓冲区
+		RingBuffer_Put(&USART3_RxBuffer, data);
 	}
-		else if(Check==1)
-		{
-			uart3_receive_message[message_count] = Usart_Receive;
-			if(Usart_Receive=='#')		
-			{
-				uart3_receive_message[message_count]='\0';
-				uart3_send_flag = 1;
-			}
-			message_count++;
-		}
-	} 
-  return 0;	
+	return 0;   
 }
 
 /**************************************************************************
@@ -1237,7 +1194,7 @@ int UART5_IRQHandler(void)
 		
 		//Fill the array with serial data
 		//串口数据填入数组
-    Receive_Data.buffer[Count]=Usart_Receive;
+	Receive_Data.buffer[Count]=Usart_Receive;
 		
 		// Ensure that the first data in the array is FRAME_HEADER
 		//确保数组第一个数据为FRAME_HEADER
@@ -1257,7 +1214,7 @@ int UART5_IRQHandler(void)
 				  {	
 						float Vz;						
 						//All modes flag position 0, USART3 control mode
-            //所有模式标志位置0，为Usart5控制模式						
+			//所有模式标志位置0，为Usart5控制模式						
 						PS2_ON_Flag=0;
 						Remote_ON_Flag=0;
 						APP_ON_Flag=0;
@@ -1294,13 +1251,13 @@ Output  : none                          everloss......
 **************************************************************************/
 int USART6_IRQHandler(void)
 {
-    if(USART_GetITStatus(USART6, USART_IT_RXNE) != RESET)
-    {
-        u8 data = USART_ReceiveData(USART6);
-        // 添加接收数据处理逻辑
-        // 例如：存入接收缓冲区、协议解析等
-    }
-    return 0;
+	if(USART_GetITStatus(USART6, USART_IT_RXNE) != RESET)
+	{
+		u8 data = USART_ReceiveData(USART6);
+		// 添加接收数据处理逻辑
+		// 例如：存入接收缓冲区、协议解析等
+	}
+	return 0;
 }
 /**************************************************************************
 Function: After the top 8 and low 8 figures are integrated into a short type data, the unit reduction is converted
@@ -1579,42 +1536,22 @@ void _System_Reset_(u8 uart_recv)
 激光函数移植...........部分在usart6_send上
 **************************************************************************/
 void parseCoordinates(const char *str, int *x1, int *y1, int *x2, int *y2, 
-                      int *x3, int *y3, int *x4, int *y4) {
-    const char *ptr = str;
-    
-    // 解析前四个顶点坐标（x1,y1;x2,y2;x3,y3;x4,y4）
-    sscanf(ptr, "%d,%d;", x1, y1);
-    ptr = strchr(ptr, ';') + 1;
-    
-    sscanf(ptr, "%d,%d;", x2, y2);
-    ptr = strchr(ptr, ';') + 1;
-    
-    sscanf(ptr, "%d,%d;", x3, y3);
-    ptr = strchr(ptr, ';') + 1;
-    
-    sscanf(ptr, "%d,%d;", x4, y4);
-		turn_time=0;
+					  int *x3, int *y3, int *x4, int *y4) {
+	// 使用 sscanf 一次性解析所有坐标
+	int result = sscanf(str, "%d,%d;%d,%d;%d,%d;%d,%d", 
+					   x1, y1, x2, y2, x3, y3, x4, y4);
+	
+	// 如果解析失败（返回值小于8），设置默认值
+	if (result != 8) {
+		*x1 = *y1 = *x2 = *y2 = *x3 = *y3 = *x4 = *y4 = -1;
+	}
+		turn_time = 0;
 }
 											
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// 位置解析函数
+void parsePositions(const char *str, float *x_car, float *y_car, float *x_enemy, float *y_enemy) {
+	// 使用 sscanf 解析两个坐标
+	int result = sscanf(str, "%f,%f;%f,%f", x_enemy, y_enemy, x_car,y_car );
+	
+	// 如果解析失败（返回值小于4），设置默认值
+}

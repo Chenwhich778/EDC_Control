@@ -1,4 +1,3 @@
-// laser_tracker.h£¨¼ò»¯°æ£©
 #ifndef LASER_TRACKER_H
 #define LASER_TRACKER_H
 
@@ -9,26 +8,26 @@
 #include "system.h"
 
 
-// PID¿ØÖÆÆ÷²ÎÊý
+// PIDï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
-#define KP_x 1.0    // ±ÈÀýÏµÊý1.25
-#define KI_x 0.08   // »ý·ÖÏµÊý0.1
-#define KD_x 0.14   // Î¢·ÖÏµÊý0.2
+#define KP_x 0.05    // ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½1.25
+#define KI_x 0.05  // ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½0.1
+#define KD_x 0.01   // Î¢ï¿½ï¿½Ïµï¿½ï¿½0.2
 
-#define KP_y 0.5    // ±ÈÀýÏµÊý0.5
-#define KI_y 0.04   // »ý·ÖÏµÊý0.04
-#define KD_y 0.08   // Î¢·ÖÏµÊý0.08
+#define KP_y 0.8    // ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½0.5
+#define KI_y 0.04   // ï¿½ï¿½ï¿½ï¿½Ïµï¿½ï¿½0.04
+#define KD_y 0.08   // Î¢ï¿½ï¿½Ïµï¿½ï¿½0.08
 
 
-// ±ß½çÏÞÖÆ
-#define MIN_X 0
-#define MAX_X 4095
+// ï¿½ß½ï¿½ï¿½ï¿½ï¿½ï¿½
+#define MIN_X (center_x1+general_angle/360*4096-400)
+#define MAX_X (center_x1+general_angle/360*4096+400)
 #define MIN_Y (center_y1 - 400)
 #define MAX_Y (center_y1 + 400)
 #define MAX_INTER_X (MAX_X-MIN_X+1)/KI_x
 #define MAX_INTER_Y (MAX_Y-MIN_Y+1)
 #define MAX_FINE_ADJUST 2048  // 4096 * 0.5
-//±äÁ¿¶¨Òå
+//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 extern float general_angle;
 
 extern uint16_t servo[4];
@@ -40,7 +39,7 @@ extern int laser_x;
 extern int laser_y;
 
 
-// º¯ÊýÉùÃ÷
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 void laser_track(int x1,int y1,int x2,int y2,int x3,int y3,int x4,int y4);
 #endif
 

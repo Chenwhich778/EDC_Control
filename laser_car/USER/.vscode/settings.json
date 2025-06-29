@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "laser_tracker.h": "c",
+        "balance.h": "c",
+        "system.h": "c",
+        "servo_protocol.h": "c",
+        "show.h": "c"
+    }
+}

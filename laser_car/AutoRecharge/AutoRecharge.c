@@ -1,13 +1,13 @@
 #include "AutoRecharge.h"
 
 // Enable navigation to find charging pile
-//ÊÇ·ñ¿ªÆôµ¼º½Ñ°ÕÒ³äµç×®
+//ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ñ°ï¿½Ò³ï¿½ï¿½×®
 u8 nav_walk=0;
 // Whether automatic charging is allowed
-//ÊÇ·ñÔÊÐí½øÐÐ×Ô¶¯»Ø³ä
+//ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½Ø³ï¿½
 u8 Allow_Recharge=0;
 // Whether the robot is charging, and whether the recharge equipment receives infrared signals
-//»úÆ÷ÈËÊÇ·ñÔÚ³äµç£¬»Ø³ä×°±¸ÊÇ·ñ½ÓÊÕµ½ºìÍâÐÅºÅ
+//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ï¿½Ú³ï¿½ç£¬ï¿½Ø³ï¿½×°ï¿½ï¿½ï¿½Ç·ï¿½ï¿½ï¿½Õµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Åºï¿½
 u8 Charging, RED_STATE;
 float Charging_Current=0;
 float Recharge_Red_Move_X, Recharge_Red_Move_Y, Recharge_Red_Move_Z; 
@@ -18,11 +18,11 @@ void CAN_Send_AutoRecharge(void)
 {
 	u8 CAN_SENT[8];
 	
-	//Ô¤ÁôÎ»
+	//Ô¤ï¿½ï¿½Î»
 	CAN_SENT[0]=0;
 	
 	//Set the speed of the infrared interconnection, unit m/s
-	//ÉèÖÃºìÍâ¶Ô½ÓµÄËÙ¶È´óÐ¡£¬µ¥Î»mm/s
+	//ï¿½ï¿½ï¿½Ãºï¿½ï¿½ï¿½Ô½Óµï¿½ï¿½Ù¶È´ï¿½Ð¡ï¿½ï¿½ï¿½ï¿½Î»mm/s
 	CAN_SENT[1]=((short)(Red_Docker_X*1000))>>8;
 	CAN_SENT[2]=((short)(Red_Docker_X*1000));
 	CAN_SENT[3]=((short)(Red_Docker_Y*1000))>>8;
