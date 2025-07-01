@@ -365,7 +365,7 @@ void oled_show(void)
 					// Mec_Car Display the target speed and current actual speed of motor D
 					// 麦轮小车显示电机D的目标速度和当前实际速度
 					OLED_ShowString(0, 40, "D");
-					OLED_ShowNumber(20, 40, x1, 5, 12);
+					OLED_ShowNumber(20, 40,test_num, 5, 12);
 					oled_showfloat(general_angle, 75, 40, 3, 2);
 					// if (MOTOR_D.Target < 0)
 					// 	OLED_ShowString(15, 40, "-"),

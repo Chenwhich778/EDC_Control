@@ -10,9 +10,9 @@
 
 // PID����������
 
-#define KP_x 0.05    // ����ϵ��1.25
-#define KI_x 0.05  // ����ϵ��0.1
-#define KD_x 0.01   // ΢��ϵ��0.2
+#define KP_x 0.6    // ����ϵ��1.25
+#define KI_x 0.02  // ����ϵ��0.1
+#define KD_x 0.1   // ΢��ϵ��0.2
 
 #define KP_y 0.8    // ����ϵ��0.5
 #define KI_y 0.04   // ����ϵ��0.04
@@ -20,8 +20,8 @@
 
 
 // �߽�����
-#define MIN_X (center_x1+general_angle/360*4096-400)
-#define MAX_X (center_x1+general_angle/360*4096+400)
+#define MIN_X (center_x1+general_angle/360*4096-50)
+#define MAX_X (center_x1+general_angle/360*4096+50)
 #define MIN_Y (center_y1 - 400)
 #define MAX_Y (center_y1 + 400)
 #define MAX_INTER_X (MAX_X-MIN_X+1)/KI_x

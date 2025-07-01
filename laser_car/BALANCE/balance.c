@@ -8,8 +8,14 @@ const float forbidden[3][2] = {{1.0, 2.0}, {2.0, 2.0}, {3.0, 2.0}};
 const float forbidden_radius = 0.2f; // 20cm
 
 // 预设敌人绝对坐标 (根据实际需求设置)
-float PRESET_ENEMY_X = 1.0f;
+float PRESET_ENEMY_X = 2.9f; // 第一个目标点
 float PRESET_ENEMY_Y = 1.0f;
+float PRESET_ENEMY_X2 = 1.0f; // 第二个目标点
+float PRESET_ENEMY_Y2 = 3.0f;
+
+//// 预设敌人绝对坐标 (根据实际需求设置)
+//float PRESET_ENEMY_X = 1.9f;
+//float PRESET_ENEMY_Y = 1.5f;
 
 int test_num1 = 0; // 测试变量，用于调试
 
@@ -41,7 +47,7 @@ typedef struct
 } Path;
 
 
-#define SAFE_DIST 0.23f
+#define SAFE_DIST 0.25f
 #define SAFE_DIST_SQ (SAFE_DIST * SAFE_DIST)
 
 
@@ -92,7 +98,7 @@ Path plan_path(float start_x, float start_y, float end_x, float end_y) {
 	// 按距离起点最近优先检查候选点
 	for (int i = 0; i < 4; i++) {
 		float mid_x = candidates[i];
-		float distance = fabsf(mid_x - start_x);
+		float distance = fabsf(mid_x - end_x);
 
 		// 检查三段路径的安全性
 		bool safe1 = is_segment_safe(start_x, start_y, mid_x, start_y);
@@ -121,7 +127,7 @@ Path plan_path(float start_x, float start_y, float end_x, float end_y) {
 // 检查是否到达目标点
 bool reached_target(float current_x, float current_y, float target_x, float target_y)
 {
-	const float TOLERANCE = 0.15f; // 8cm容差
+	const float TOLERANCE = 0.28f; // 10cm容差
 	return fabsf(current_x - target_x) < TOLERANCE &&
 		   fabsf(current_y - target_y) < TOLERANCE;
 }
@@ -414,29 +420,36 @@ Output  : none
 入口参数：无
 返回  值：无
 **************************************************************************/
+
+
 void Balance_task(void *pvParameters)
 {
 	u32 lastWakeTime = getSysTickCnt();
 
 typedef enum
-	{
-		STAGE_START,	   // 初始状态
-		STAGE_CROSS_Y2,	   // 越过y=2.3线
-		STAGE_STABLE_WAIT, // 稳定等待阶段
-		STAGE_CHASE,	   // 寻敌追击
-		STAGE_STOP		   // 停止
-	} EnemyStage;
+{
+    STAGE_START,           // 初始状态
+    STAGE_CROSS_Y2,        // 越过y=2.3线
+    STAGE_STABLE_WAIT,     // 稳定等待阶段
+    STAGE_CHASE,           // 寻敌追击(第一个点)
+    STAGE_WAIT_AFTER_FIRST, // 第一个点完成后的等待
+    STAGE_CHASE_SECOND,    // 寻敌追击(第二个点)
+    STAGE_STOP             // 最终停止
+} EnemyStage;
 
-	// 全局状态变量
-	static EnemyStage stage = STAGE_START;
-	static uint8_t autoNavigation = 1;
-	static Path enemy_path = {0};
-	static int current_waypoint = 0;
-	static float stable_x = 0.0f;
-	static float stable_y = 0.0f;
-	static uint32_t stable_start_tick = 0;
 
-	Car_Mode = Mec_Car;
+
+// 全局状态变量
+static EnemyStage stage = STAGE_START;
+static uint8_t autoNavigation = 1;
+static Path enemy_path = {0};
+static int current_waypoint = 0;
+static float stable_x = 0.0f;
+static float stable_y = 0.0f;
+static uint32_t stable_start_tick = 0;
+static uint32_t wait_start_tick = 0; // 等待开始时间
+
+Car_Mode = Mec_Car;
 
 	while (1)
 	{
@@ -466,7 +479,7 @@ typedef enum
 		test_num = 2; // 清除测试编号q
 
 		// 达到安全高度后进入稳定等待阶段
-		if (Y_car >= 2.0f)
+		if (Y_car >= 2.5f)
 		{
 			stage = STAGE_STABLE_WAIT;
 		}
@@ -504,7 +517,8 @@ typedef enum
 			// 所有路径点已完成，检查是否到达敌人位置
 			if (reached_target(X_car, Y_car, PRESET_ENEMY_X, PRESET_ENEMY_Y))
 			{
-				stage = STAGE_STOP;
+				stage = STAGE_WAIT_AFTER_FIRST; // 进入等待状态
+                    wait_start_tick = getSysTickCnt(); // 记录等待开始时间
 			}
 			break;
 		}
@@ -516,54 +530,135 @@ typedef enum
 		// 根据当前路径点类型决定移动方向
 		// 第一个路径点：水平移动（改变x坐标）
 		if (current_waypoint == 0 || 
-			(fabsf(target.y - Y_car) < 0.01f && fabsf(target.x - X_car) > 0.01f))
+			(fabsf(target.y - Y_car) < 0.1f && fabsf(target.x - X_car) > 0.01f))
 		{
+			test_num = 31;
 			// 水平移动：只改变x坐标（使用Move_Y控制）
-			Move_Y = -k * (target.x - X_car); // 控制x轴方向移动
-			if (fabsf(Move_Y) < 0.4f) // 防止速度过小
-				Move_Y = (Move_Y > 0) ? 0.1f : -0.1f;
+			Move_Y = -k * (target.x - X_car)/1.4; // 控制x轴方向移动
+			if (fabsf(Move_Y) < 0.2f) // 防止速度过小
+				Move_Y = (Move_Y > 0) ? 0.2f : -0.2f;
 			Move_X = 0; // y轴方向不动
 			Move_Z = 0;
 			
 			// 检查是否到达x轴目标
-			if (fabsf(X_car - target.x) < 0.1f) {
+			if (fabsf(X_car - target.x) < 0.05f) {
 				current_waypoint++;
 			}
 		}
 		// 第二个路径点：垂直移动（改变y坐标）
 		else if (current_waypoint == 1 || 
-				 (fabsf(target.x - X_car) < 0.01f && fabsf(target.y - Y_car) > 0.01f))
+				 (fabsf(target.x - X_car) < 0.1f && fabsf(target.y - Y_car) > 0.01f))
 		{
+			test_num = 32;
 			// 垂直移动：只改变y坐标（使用Move_X控制）
-			Move_X = k * (target.y - Y_car); // 控制y轴方向移动
-			if (fabsf(Move_X) < 0.5f) // 防止速度过小
-				Move_X = (Move_X > 0) ? 0.1f : -0.1f;
+			Move_X = k * (target.y - Y_car)/1.7; // 控制y轴方向移动
+			if (fabsf(Move_X) < 0.2f) // 防止速度过小
+				Move_X = (Move_X > 0) ? 0.15f : -0.15f;
 			Move_Y = 0; // x轴方向不动
 			Move_Z = 0;
 			
 			// 检查是否到达y轴目标
-			if (fabsf(Y_car - target.y) < 0.1f) {
+			if (fabsf(Y_car - target.y) < 0.05f) {
 				current_waypoint++;
 			}
 		}
 		// 第三个路径点（如果需要）：水平移动（改变x坐标）
 		else if (current_waypoint == 2)
 		{
+			test_num = 33;
 			// 水平移动：只改变x坐标（使用Move_Y控制）
-			Move_Y = -k * (target.x - X_car); // 控制x轴方向移动
-			if (fabsf(Move_Y) < 0.5f) // 防止速度过小
-				Move_Y = (Move_Y > 0) ? 0.1f : -0.1f;
+			Move_Y = -k * (target.x - X_car)/1.5; // 控制x轴方向移动
+			if (fabsf(Move_Y) < 0.3f) // 防止速度过小
+				Move_Y = (Move_Y > 0) ? 0.15f : -0.15f;
 			Move_X = 0; // y轴方向不动
 			Move_Z = 0;
 			
 			// 检查是否到达x轴目标
-			if (fabsf(X_car - target.x) < 0.1f) {
+			if (fabsf(X_car - target.x) < 0.05f) {
 				current_waypoint++;
 			}
 		}
 		break;
 	}
 		
+	 case STAGE_WAIT_AFTER_FIRST:
+            Move_X = 0;
+            Move_Y = 0;
+            Move_Z = 0;
+            test_num = 6; // 等待状态
+            
+            // 等待20秒（20000ms）
+            if (getSysTickCnt() - wait_start_tick >= 8000)
+            {
+                // 使用当前位置规划到第二个点的路径
+                enemy_path = plan_path(X_car, Y_car, PRESET_ENEMY_X2, PRESET_ENEMY_Y2);
+                current_waypoint = 0;
+                stage = STAGE_CHASE_SECOND;
+            }
+            break;
+						
+						
+						  case STAGE_CHASE_SECOND:
+        {
+            if (current_waypoint >= enemy_path.count)
+            {
+                // 所有路径点已完成，检查是否到达敌人位置
+                if (reached_target(X_car, Y_car, PRESET_ENEMY_X2, PRESET_ENEMY_Y2))
+                {
+                    stage = STAGE_STOP;
+                }
+                break;
+            }
+            test_num = 7; // 追踪第二个点
+            
+            // 获取当前目标点（绝对坐标）
+            Waypoint target = enemy_path.points[current_waypoint];
+            
+            // 路径追踪逻辑（与STAGE_CHASE相同）
+            if (current_waypoint == 0 || 
+                (fabsf(target.y - Y_car) < 0.1f && fabsf(target.x - X_car) > 0.01f))
+            {
+                test_num = 71;
+                Move_Y = -k * (target.x - X_car)/1.8;
+                if (fabsf(Move_Y) < 0.2f)
+                    Move_Y = (Move_Y > 0) ? 0.2f : -0.2f;
+                Move_X = 0;
+                Move_Z = 0;
+                
+                if (fabsf(X_car - target.x) < 0.05f) {
+                    current_waypoint++;
+                }
+            }
+            else if (current_waypoint == 1 || 
+                     (fabsf(target.x - X_car) < 0.1f && fabsf(target.y - Y_car) > 0.01f))
+            {
+                test_num = 72;
+                Move_X = k * (target.y - Y_car)/1.6;
+                if (fabsf(Move_X) < 0.2f)
+                    Move_X = (Move_X > 0) ? 0.15f : -0.15f;
+                Move_Y = 0;
+                Move_Z = 0;
+                
+                if (fabsf(Y_car - target.y) < 0.05f) {
+                    current_waypoint++;
+                }
+            }
+            else if (current_waypoint == 2)
+            {
+                test_num = 73;
+                Move_Y = -k * (target.x - X_car)/1.5;
+                if (fabsf(Move_Y) < 0.3f)
+                    Move_Y = (Move_Y > 0) ? 0.15f : -0.15f;
+                Move_X = 0;
+                Move_Z = 0;
+                
+                if (fabsf(X_car - target.x) < 0.05f) {
+                    current_waypoint++;
+                }
+            }
+            break;
+        }
+						
 	case STAGE_STOP:
 		test_num = 4; // 停止状态
 		Move_X = 0;
@@ -572,12 +667,33 @@ typedef enum
 		autoNavigation = 0;
 		break;
 	}
-	
+	if(fabsf(Move_X) >1.2) Move_X =(Move_X > 0) ? 1.2f : -1.2f;
+	if(fabsf(Move_Y )>1.2) Move_Y =(Move_Y > 0) ? 1.2f : -1.2f;
 	// 禁用其他控制标志
 	APP_ON_Flag = 0;
 	Remote_ON_Flag = 0;
 	PS2_ON_Flag = 0;
 }
+//// 在运动控制前加入角度闭环
+//float target_yaw = 0; // 目标角度0度
+//float current_yaw = imu.gyro.z; // 从IMU获取当前偏航角
+//float yaw_error = target_yaw - current_yaw;
+
+//// 归一化角度误差到[-π, π]
+//while (yaw_error > PI) yaw_error -= 2 * PI;
+//while (yaw_error < -PI) yaw_error += 2 * PI;
+
+//// 角度闭环PID控制
+//float Kp_yaw = 0.5f; // 比例系数
+//float Kd_yaw = 0.1f; // 微分系数
+//static float last_yaw_error = 0;
+
+//// 计算旋转补偿量
+//float compensation_Vz = Kp_yaw * yaw_error + Kd_yaw * (yaw_error - last_yaw_error);
+//last_yaw_error = yaw_error;
+
+//// 将补偿量叠加到原始旋转速度
+//Move_Z += compensation_Vz;
 			// ===== 新增结束 =====
 
 			// Click the user button to update the gyroscope zero
