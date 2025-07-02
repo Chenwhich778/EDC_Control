@@ -4,7 +4,7 @@
 #include "stdio.h"
 #include "sys.h"
 #include "system.h"
-#include "laser_tracker.h"//ĞÂÔöÒÆÖ²
+#include "laser_tracker.h"//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö²
 
 #define DATA_STK_SIZE   512 
 #define DATA_TASK_PRIO  5
@@ -19,29 +19,29 @@
 #define AutoCharge_DATA_SIZE    8
 
 /*****A structure for storing triaxial data of a gyroscope accelerometer*****/
-/*****ÓÃÓÚ´æ·ÅÍÓÂİÒÇ¼ÓËÙ¶È¼ÆÈıÖáÊı¾İµÄ½á¹¹Ìå*********************************/
+/*****ï¿½ï¿½ï¿½Ú´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç¼ï¿½ï¿½Ù¶È¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½İµÄ½á¹¹ï¿½ï¿½*********************************/
 typedef struct __Mpu6050_Data_ 
 {
-	short X_data; //2 bytes //2¸ö×Ö½Ú
-	short Y_data; //2 bytes //2¸ö×Ö½Ú
-	short Z_data; //2 bytes //2¸ö×Ö½Ú
+	short X_data; //2 bytes //2ï¿½ï¿½ï¿½Ö½ï¿½
+	short Y_data; //2 bytes //2ï¿½ï¿½ï¿½Ö½ï¿½
+	short Z_data; //2 bytes //2ï¿½ï¿½ï¿½Ö½ï¿½
 }Mpu6050_Data;
 
 /*******The structure of the serial port sending data************/
-/*******´®¿Ú·¢ËÍÊı¾İµÄ½á¹¹Ìå*************************************/
+/*******ï¿½ï¿½ï¿½Ú·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½İµÄ½á¹¹ï¿½ï¿½*************************************/
 typedef struct _SEND_DATA_  
 {
 	unsigned char buffer[SEND_DATA_SIZE];
 	struct _Sensor_Str_
 	{
-		unsigned char Frame_Header; //1¸ö×Ö½Ú
-		short X_speed;	            //2 bytes //2¸ö×Ö½Ú
-		short Y_speed;              //2 bytes //2¸ö×Ö½Ú
-		short Z_speed;              //2 bytes //2¸ö×Ö½Ú
-		short Power_Voltage;        //2 bytes //2¸ö×Ö½Ú
-		Mpu6050_Data Accelerometer; //6 bytes //6¸ö×Ö½Ú
-		Mpu6050_Data Gyroscope;     //6 bytes //6¸ö×Ö½Ú	
-		unsigned char Frame_Tail;   //1 bytes //1¸ö×Ö½Ú
+		unsigned char Frame_Header; //1ï¿½ï¿½ï¿½Ö½ï¿½
+		short X_speed;	            //2 bytes //2ï¿½ï¿½ï¿½Ö½ï¿½
+		short Y_speed;              //2 bytes //2ï¿½ï¿½ï¿½Ö½ï¿½
+		short Z_speed;              //2 bytes //2ï¿½ï¿½ï¿½Ö½ï¿½
+		short Power_Voltage;        //2 bytes //2ï¿½ï¿½ï¿½Ö½ï¿½
+		Mpu6050_Data Accelerometer; //6 bytes //6ï¿½ï¿½ï¿½Ö½ï¿½
+		Mpu6050_Data Gyroscope;     //6 bytes //6ï¿½ï¿½ï¿½Ö½ï¿½	
+		unsigned char Frame_Tail;   //1 bytes //1ï¿½ï¿½ï¿½Ö½ï¿½
 	}Sensor_Str;
 }SEND_DATA;
 
@@ -50,12 +50,12 @@ typedef struct _SEND_AutoCharge_DATA_
 	unsigned char buffer[AutoCharge_DATA_SIZE];
 	struct _AutoCharge_Str_
 	{
-		unsigned char Frame_Header; //1 bytes //1¸ö×Ö½Ú
-		short Charging_Current;	    //2 bytes //2¸ö×Ö½Ú
-		unsigned char RED;          //1 bytes //1¸ö×Ö½Ú
-		unsigned char Charging;     //1 bytes //1¸ö×Ö½Ú
-		unsigned char yuliu;		//1 bytes //1¸ö×Ö½Ú
-		unsigned char Frame_Tail;   //1 bytes //1¸ö×Ö½Ú
+		unsigned char Frame_Header; //1 bytes //1ï¿½ï¿½ï¿½Ö½ï¿½
+		short Charging_Current;	    //2 bytes //2ï¿½ï¿½ï¿½Ö½ï¿½
+		unsigned char RED;          //1 bytes //1ï¿½ï¿½ï¿½Ö½ï¿½
+		unsigned char Charging;     //1 bytes //1ï¿½ï¿½ï¿½Ö½ï¿½
+		unsigned char yuliu;		//1 bytes //1ï¿½ï¿½ï¿½Ö½ï¿½
+		unsigned char Frame_Tail;   //1 bytes //1ï¿½ï¿½ï¿½Ö½ï¿½
 	}AutoCharge_Str;
 }SEND_AutoCharge_DATA;
 
@@ -64,11 +64,11 @@ typedef struct _RECEIVE_DATA_
 	unsigned char buffer[RECEIVE_DATA_SIZE];
 	struct _Control_Str_
 	{
-		unsigned char Frame_Header; //1 bytes //1¸ö×Ö½Ú
-		float X_speed;	            //4 bytes //4¸ö×Ö½Ú
-		float Y_speed;              //4 bytes //4¸ö×Ö½Ú
-		float Z_speed;              //4 bytes //4¸ö×Ö½Ú
-		unsigned char Frame_Tail;   //1 bytes //1¸ö×Ö½Ú
+		unsigned char Frame_Header; //1 bytes //1ï¿½ï¿½ï¿½Ö½ï¿½
+		float X_speed;	            //4 bytes //4ï¿½ï¿½ï¿½Ö½ï¿½
+		float Y_speed;              //4 bytes //4ï¿½ï¿½ï¿½Ö½ï¿½
+		float Z_speed;              //4 bytes //4ï¿½ï¿½ï¿½Ö½ï¿½
+		unsigned char Frame_Tail;   //1 bytes //1ï¿½ï¿½ï¿½Ö½ï¿½
 	}Control_Str;
 }RECEIVE_DATA;
 
@@ -79,20 +79,20 @@ void USART3_SEND(void);
 void USART3_Return(void);
 void USART2_Return(void);
 void USART5_SEND(void);
-void USART6_SEND(void);//ĞÂÔö
+void USART6_SEND(void);//ï¿½ï¿½ï¿½ï¿½
 
 void CAN_SEND(void);
 void uart1_init(u32 bound);
 void uart2_init(u32 bound);
 void uart3_init(u32 bound);
 void uart5_init(u32 bound);
-void uart6_init(u32 bound);//ĞÂÔö
+void uart6_init(u32 bound);//ï¿½ï¿½ï¿½ï¿½
 
 int USART1_IRQHandler(void);
 int USART2_IRQHandler(void);
 int USART3_IRQHandler(void);
 int UART5_IRQHandler(void);
-int UART6_IRQHandler(void);//ĞÂÔö
+int UART6_IRQHandler(void);//ï¿½ï¿½ï¿½ï¿½
 
 float Vz_to_Akm_Angle(float Vx, float Vz);
 float XYZ_Target_Speed_transition(u8 High,u8 Low);
@@ -100,7 +100,7 @@ void usart1_send(u8 data);
 void usart2_send(u8 data);
 void usart3_send(u8 data);
 void usart5_send(u8 data);
-void usart6_send(u8 data);//ĞÂÔö
+void usart6_send(u8 data);//ï¿½ï¿½ï¿½ï¿½
 
 u8 Check_Sum(unsigned char Count_Number,unsigned char Mode);
 u8 Check_Sum_AutoCharge(unsigned char Count_Number,unsigned char Mode);
@@ -113,11 +113,24 @@ extern int x1, y1, x2, y2, x3, y3, x4, y4;
 extern uint16_t turn_time;
 extern float X_car,Y_car,X_enemy,Y_enemy;
 
-// Ìí¼Ó»·ĞÎ»º³åÇø½á¹¹
+// ï¿½ï¿½ï¿½Ó»ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á¹¹
 #define RING_BUF_SIZE 1024
-// Òç³ö¼ÆÊıÆ÷ÉùÃ÷
+// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 extern volatile uint32_t usart1_overflow_count;
 extern volatile uint32_t usart3_overflow_count;
+// å®šä¹‰ç›®æ ‡ä¿¡æ¯ç»“æ„ä½“
+typedef struct {
+    char shape[20];          // å½¢çŠ¶ï¼šcircle/rectangleç­‰
+    char color[20];          // é¢œè‰²
+    int center_x;            // ä¸­å¿ƒç‚¹Xåæ ‡
+    int center_y;            // ä¸­å¿ƒç‚¹Yåæ ‡
+    float size;              // å°ºå¯¸ï¼ˆç›´å¾„æˆ–è¾¹é•¿ï¼‰
+    float distance;          // è·ç¦»ï¼ˆç±³ï¼‰
+    char size_unit[10];      // å°ºå¯¸å•ä½ï¼špx/m
+    int detected;            // æ˜¯å¦æ£€æµ‹åˆ°ç›®æ ‡ï¼ˆ1=æ£€æµ‹åˆ°ï¼Œ0=æœªæ£€æµ‹åˆ°ï¼‰
+} ObjectInfo;
+
+extern ObjectInfo info;
 
 typedef struct {
 	uint8_t buffer[RING_BUF_SIZE];
@@ -126,11 +139,11 @@ typedef struct {
 	volatile uint8_t frame_ready;
 } RingBuffer;
 
-// ÉùÃ÷Íâ²¿»º³åÇø
+// ï¿½ï¿½ï¿½ï¿½ï¿½â²¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 extern RingBuffer USART1_RxBuffer;
 extern RingBuffer USART3_RxBuffer;
 
-// Ìí¼Óº¯ÊıÉùÃ÷
+// ï¿½ï¿½ï¿½Óºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 void RingBuffer_Init(RingBuffer *rb);
 uint8_t RingBuffer_Put(RingBuffer *rb, uint8_t data);
 uint8_t RingBuffer_Get(RingBuffer *rb, uint8_t *data);

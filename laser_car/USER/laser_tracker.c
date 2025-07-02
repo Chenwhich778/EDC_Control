@@ -1,222 +1,146 @@
-// laser_tracker.c锟斤拷锟睫革拷同锟斤拷锟斤拷锟斤拷为顺锟斤拷锟斤拷疲锟?
+// laser_tracker.c（修改同步控制为顺序控制）
 #include "laser_tracker.h"
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
 
-//锟斤拷锟斤拷锟斤拷锟斤拷
-float general_angle=0;
-float pre_general_angle=0;
-uint16_t servo[4]={center_x1,center_y1,0,0};
-uint8_t find_target=0;
-uint8_t track_flag=1;
-float search_delt=10;//未锟揭碉拷目锟斤拷每锟斤拷转锟斤拷锟角讹拷
-uint16_t lose_time=0;
-int laser_x=620;
-int laser_y=540;
-uint16_t track_time=0;
-extern float X_enemy;
-extern float Y_enemy;
-//锟斤拷锟斤拷锟斤拷锟斤拷
-void laser_track(int x1, int y1, int x2, int y2, int x3, int y3, int x4, int y4) {
+// 辅助函数：数值限幅
+static int constrain(int value, int min, int max) {
+    return (value < min) ? min : ((value > max) ? max : value);
+}
 
-    static float error_x = 0;           // X锟斤拷锟斤拷锟?
-    static float error_y = 0;           // Y锟斤拷锟斤拷锟?
-    static float integral_x = 0;        // X锟斤拷锟斤拷锟斤拷锟?
-    static float integral_y = 0;        // Y锟斤拷锟斤拷锟斤拷锟?
-	  static float derivative_x=0;
-	  static float derivative_y=0;
-    static float prev_error_x = 0;      // 锟斤拷一锟斤拷X锟斤拷锟斤拷锟?
-    static float prev_error_y = 0;      // 锟斤拷一锟斤拷Y锟斤拷锟斤拷锟?
-	  static float output_x=0;
-		static float output_y=0;
-	  static float fine_adjust_x=0;
-	  static float fine_adjust_y=0;
+static float Constrain(float value, float min, float max) {
+    return (value < min) ? min : ((value > max) ? max : value);
+}
+
+// 全局变量（需在函数外部声明）
+int servo_x = 2000;  // 水平舵机初始值 (1900-2100)
+int servo_y = 2050;  // 垂直舵机初始值 (2000-2100)
+int last_obj_x = 320;  // 上一帧物体x坐标
+int last_obj_y = 290;  // 上一帧物体y坐标
+int lock_count = 0;    // 锁定计数器
+int move_counter = 0;  // 移动间隔计数器
+int consecutive_steps = 0; // 连续移动计数
+
+// 精细控制结构（用于亚步长移动）
+typedef struct {
+    int base;      // 基础舵机位置
+    float fine;    // 亚步长累积值
+} FineServo;
+
+FineServo fine_servo_x = {2000, 0};
+FineServo fine_servo_y = {2050, 0};
+
+void control_camera(int obj_x, int obj_y) {
+    // 目标固定点坐标（相机中心）
+    const int TARGET_X = 325;
+    const int TARGET_Y = 268;
     
-		 //  应锟斤拷全锟街角讹拷偏锟狡ｏ拷锟斤拷锟皆凤拷锟斤拷
-    float base_target_x = center_x1;
-	  float base_target_y = center_y1;
-    if (general_angle >= -180.0 && general_angle <= 180.0&&fabs(general_angle)>=5) {
-        base_target_x = center_x1 + general_angle / 360.0 * 4096.0;
+    // 计算图像坐标误差
+    int error_x = TARGET_X - obj_x;
+    int error_y = obj_y - TARGET_Y;
+    
+    // 计算物体移动方向（用于预测）
+    int delta_x = obj_x - last_obj_x;
+    int delta_y = obj_y - last_obj_y;
+    last_obj_x = obj_x;
+    last_obj_y = obj_y;
+    
+    // 超小步进控制参数 - 减小步幅到0.2舵机单位
+    const float FINE_STEP_SIZE = 0.2f;  // 精细步长（从0.25减小到0.2）
+    float fine_step_x = 0;
+    float fine_step_y = 0;
+    
+    // 移动间隔控制（每3帧移动一次）
+    move_counter = (move_counter + 1) % 4;
+    bool allow_move = (move_counter == 0);
+    
+    // 默认锁定阈值
+    int LOCK_THRESHOLD_X = 5;
+    int LOCK_THRESHOLD_Y = 5;
+    // 当识别到的尺寸小于28时，阈值放宽到6
+    if (info.size < 28.0f) {
+        LOCK_THRESHOLD_X = 6;
+        LOCK_THRESHOLD_Y = 6;
     }
-		//if(find_target==1)
-			//search_delt=1;
-		if(find_target==0)
-			{lose_time++;
-				if(Y_enemy!=0)
-				  general_angle=atan2(X_enemy,Y_enemy) * (180.0/ PI);
-				  if(abs(pre_general_angle-general_angle)<2)
-						general_angle=pre_general_angle;
-					pre_general_angle=general_angle;
-				//integral_x=0;
-				//integral_y=0;
-				//error_x = 0;           // X锟斤拷锟斤拷锟?
-        //error_y = 0;
-			}
 
-		else{
-			lose_time=0;
-				 // 锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷
-		}
-		if(track_flag!=0){
-			 // 锟斤拷锟斤拷锟侥革拷锟斤拷募锟斤拷锟斤拷锟斤拷模锟斤拷锟斤拷模锟?
-			if(find_target==1){
-				float centroid_x = (x1 + x2 + x3 + x4) / 4.0f;
-				float centroid_y = (y1 + y2 + y3 + y4) / 4.0f;
-				if(centroid_x<0)centroid_x=0;
-				if(centroid_y<0)centroid_y=0;
-				// 3. 锟节达拷锟皆凤拷锟斤拷锟斤拷锟斤拷锟接︼拷眉锟斤拷锟斤拷锟斤拷锟轿?锟斤拷锟斤拷锟斤拷确锟斤拷锟斤拷锟斤拷
-				float fine_adjust_x = centroid_x - laser_x;  // 锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷锟斤拷诩锟斤拷锟轿伙拷玫锟狡?锟斤拷
-				float fine_adjust_y = centroid_y - laser_y;  // 注锟斤拷Y锟结方锟斤拷
-				if(abs(fine_adjust_x)<(x2+x3)/2-(x1+x4)/2||track_time>=50)track_time++;
-				else track_time=0;
-				if(track_time>=50){
-					Buzzer=1;
-				}
-				if(track_time>=70){track_time=0;Buzzer=0;}
-				if(abs(fine_adjust_x)<((x2+x3)/2-(x1+x4)/2)*0.58){
-					fine_adjust_x=0;
-				}
-				if(abs(fine_adjust_y)<((y4+y3)/2-(y1+y2)/2)/2||abs(fine_adjust_x)>((x2+x3)/2-(x1+x4)/2)/2)//x锟斤拷锟斤拷偏锟斤拷太锟斤拷时锟饺诧拷锟斤拷锟斤拷y锟斤拷锟斤拷
-					fine_adjust_y=0;
-				// 限制微调范围（避免过大调整）
-				if (fine_adjust_x > MAX_FINE_ADJUST) fine_adjust_x = MAX_FINE_ADJUST;
-				if (fine_adjust_x < -MAX_FINE_ADJUST) fine_adjust_x = -MAX_FINE_ADJUST;
-				if (fine_adjust_y > MAX_FINE_ADJUST) fine_adjust_y = MAX_FINE_ADJUST;
-				if (fine_adjust_y < -MAX_FINE_ADJUST) fine_adjust_y = -MAX_FINE_ADJUST;
-				// 5. PID控制计算
-			  // 比例项（当前误差）
-			  error_x = fine_adjust_x;
-			  error_y = fine_adjust_y;  // 注意Y轴方向
-				// 积分项（带抗饱和）
-				integral_x += error_x;
-				integral_y += error_y;
-				
-				// 限制积分项
-				integral_x = (integral_x > MAX_INTER_X) ? MAX_INTER_X : (integral_x < -MAX_INTER_X) ? -MAX_INTER_X : integral_x;
-				integral_y = (integral_y > MAX_INTER_Y) ? MAX_INTER_Y : (integral_y < -MAX_INTER_Y) ? -MAX_INTER_Y : integral_y;
-					
-				// 微分项
-				float derivative_x = error_x - prev_error_x;
-				float derivative_y = error_y - prev_error_y;
-				
-				// 保存当前误差用于下次计算
-				prev_error_x = error_x;
-				prev_error_y = error_y;
-				// PID输出
-				output_x = (KP_x * error_x + KI_x * integral_x + KD_x * derivative_x)*0.9;
-				output_y = (KP_y * error_y + KI_y * integral_y + KD_y * derivative_y)*0.9+0.1*output_y;	
-			}
-			else{
-			if(track_flag>=70)
-			  Buzzer=0;
-			  integral_x=0;
-			  integral_y=0;
-			  output_x=0;
-//			static uint16_t count=0;
-//			static float add_angle=0;
-//			if(count++>=8){
-//				if(error_x>=0.0)
-//					add_angle+=search_delt;
-//				else
-//					add_angle+=search_delt;
-//				count=0;
-//			}
-//			if(add_angle>=10||add_angle<=-10){
-//				search_delt=-search_delt;
-//				if(add_angle>=10)
-//					add_angle=9.9;
-//				else
-//					add_angle=-9.9;
-//				count=0;
-//				output_x=add_angle;
-//				output_y=0;
-//			}
-			}
-			// 6. 更新舵机位置
-			float new_x = base_target_x + output_x;
-			float new_y = base_target_y + output_y;
-			if(new_x>MAX_X)
-				servo[0]=MAX_X;
-			else if(new_x<MIN_X)
-				servo[0]=MIN_X;
-			else
-				servo[0] = new_x;
-			servo[0]=(uint16_t)new_x % 4096;
+    // 检查是否达到锁定条件
+    if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y) {
+        lock_count++;
+        // 只需连续2帧在锁定区域内就认为锁定
+        if (lock_count >= 2) {
+            // 锁定状态不进行任何移动
+            consecutive_steps = 0;
+            return;
+        }
+    } else {
+        lock_count = 0;  // 误差超出阈值，重置锁定计数
+    }
     
-			if(new_y>MAX_Y)
-				servo[1]=MAX_Y;
-			else if(new_y<MIN_Y)
-				servo[1]=MIN_Y;
-			else
-				servo[1] = new_y;
-			 // 9. 计算移动速度（使用PID输出作为速度指示）
-			float x_speed,y_speed;
-			if(abs(fine_adjust_x)<400)
-				x_speed=abs(output_x)*0.4;
-			else
-				x_speed=abs(output_x)*1.0;
-			if(x_speed>=1500)
-				x_speed=1500;
-			if(y_speed>=1500)
-				y_speed=1500;
-			
-//			if(y_speed>=100)
-//				y_speed=100;
-			// 限制最小速度（避免舵机抖动）
-			if (x_speed < 5) x_speed = 5;
-			if (y_speed < 5) y_speed = 5;
-			// 10. 设置舵机位置
-			if(lose_time>=10)
-				x_speed=1500;
-			if(track_flag==1||track_flag==3)
-				Servo_SetPosition(0x01, servo[0],x_speed);
-			if(track_flag==2||track_flag==3)
-			  Servo_SetPosition(0x02, servo[1],y_speed);
-			find_target=0;
-	  }
-//		else if(lose_time>=100&&track_flag!=0){
-//			prev_error_x=0;
-//			prev_error_y=0;
-//			integral_x=0;
-//			integral_y=0;
-//			static uint16_t count=0;
-//			if(count++>=8){
-//				if(error_x>=0.0)
-//					general_angle+=search_delt;
-//				else
-//					general_angle-=search_delt;
-//				count=0;
-//			}
-////			if(general_angle>=180||general_angle<=-180){
-////				search_delt=-search_delt;
-////				if(general_angle>=180)
-////					general_angle=179.9;
-////				else
-////					general_angle=-179.9;
-////				count=0;
-////			}
-//			if(general_angle>=35||general_angle<=-35){
-//				search_delt=-search_delt;
-//				if(general_angle>=35)
-//					general_angle=34.9;
-//				else
-//					general_angle=-34.9;
-//				count=0;
-//			}
-//			if (base_target_x < 0) {
-//						servo[0] = 4096 + base_target_x;
-//				} 
-//			else if (base_target_x > 4095) {
-//						servo[0] = base_target_x- 4096;
-//				} 
-//			else {
-//						servo[0] = base_target_x;
-//				}
-//			
-//				// Y轴不循环，直接赋值
-//			servo[1] = base_target_y;
-//			Servo_SetPosition(1, servo[0], 2000);
-//			Servo_SetPosition(2, servo[1], 2000);
-//		}
+    // 水平方向微步控制（仅在允许移动时）
+    if (allow_move && abs(error_x) > LOCK_THRESHOLD_X) {
+        fine_step_x = (error_x > 0) ? -FINE_STEP_SIZE : FINE_STEP_SIZE;
+    }
+    
+    // 垂直方向微步控制（仅在允许移动时）
+    if (allow_move && abs(error_y) > LOCK_THRESHOLD_Y) {
+        fine_step_y = (error_y > 0) ? FINE_STEP_SIZE : -FINE_STEP_SIZE;
+    }
+    
+    // 应用精细控制
+    if (fine_step_x != 0) {
+        fine_servo_x.fine += fine_step_x;
+        
+        // 累积到整数步时更新实际舵机位置
+        if (fabs(fine_servo_x.fine) >= 1.0f) {
+            int actual_step = (int)truncf(fine_servo_x.fine);
+            fine_servo_x.base = constrain(fine_servo_x.base + actual_step, 1800, 2200);
+            fine_servo_x.fine -= actual_step;
+            consecutive_steps++;
+            
+            // 更新全局舵机位置
+            servo_x = fine_servo_x.base;
+        }
+    }
+    
+    if (fine_step_y != 0) {
+        fine_servo_y.fine += fine_step_y;
+        
+        // 累积到整数步时更新实际舵机位置
+        if (fabs(fine_servo_y.fine) >= 1.0f) {
+            int actual_step = (int)truncf(fine_servo_y.fine);
+            fine_servo_y.base = constrain(fine_servo_y.base + actual_step, 1950, 2200);
+            fine_servo_y.fine -= actual_step;
+            consecutive_steps++;
+            
+            // 更新全局舵机位置
+            servo_y = fine_servo_y.base;
+        }
+    }
+    
+    // 长时间移动保护（防止无限调整）
+    if (consecutive_steps > 30) {
+        // 连续移动30次后强制暂停
+        consecutive_steps = 0;
+        lock_count = 2;  // 强制进入锁定状态
+        return;
+    }
+    
+    // 发送指令（仅当有实际舵机位置变化时）
+    static int last_servo_x = 2000;
+    static int last_servo_y = 2050;
+    
+    if (servo_x != last_servo_x || servo_y != last_servo_y) {
+        if (servo_x != last_servo_x) {
+            Servo_SetPosition(1, servo_x, 2);  // 水平舵机（增加时间减少震荡）
+            last_servo_x = servo_x;
+        }
+        if (servo_y != last_servo_y) {
+            Servo_SetPosition(2, servo_y, 2);  // 垂直舵机
+            last_servo_y = servo_y;
+        }
+        
+    } else {
+        consecutive_steps = 0;  // 无移动时重置计数
+    }
 }
