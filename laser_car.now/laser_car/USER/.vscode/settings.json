@@ -1,0 +1,14 @@
+{
+    "files.associations": {
+        "laser_tracker.h": "c",
+        "balance.h": "c",
+        "system.h": "c",
+        "servo_protocol.h": "c",
+        "show.h": "c",
+        "usartx.h": "c",
+        "LED.C": "cpp",
+        "robot_select_init.h": "c",
+        "float.h": "c",
+        "icm20948.h": "c"
+    }
+}

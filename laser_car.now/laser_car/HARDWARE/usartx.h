@@ -1,0 +1,148 @@
+#ifndef __USRATX_H
+#define __USRATX_H 
+
+#include "stdio.h"
+#include "sys.h"
+#include "system.h"
+#include "laser_tracker.h"//新增移植
+
+#define DATA_STK_SIZE   512 
+#define DATA_TASK_PRIO  5
+
+#define FRAME_HEADER      0X7B //Frame_header //帧头
+#define FRAME_TAIL        0X7D //Frame_tail   //帧尾
+#define SEND_DATA_SIZE    24
+#define RECEIVE_DATA_SIZE 11
+
+#define AutoCharge_HEADER      0X7C //Frame_header //帧头
+#define AutoCharge_TAIL        0X7F //Frame_tail   //帧尾
+#define AutoCharge_DATA_SIZE    8
+
+/*****A structure for storing triaxial data of a gyroscope accelerometer*****/
+/*****用于存放陀螺仪加速度计三轴数据的结构体*********************************/
+typedef struct __Mpu6050_Data_ 
+{
+	short X_data; //2 bytes //2个字节
+	short Y_data; //2 bytes //2个字节
+	short Z_data; //2 bytes //2个字节
+}Mpu6050_Data;
+
+/*******The structure of the serial port sending data************/
+/*******串口发送数据的结构体*************************************/
+typedef struct _SEND_DATA_  
+{
+	unsigned char buffer[SEND_DATA_SIZE];
+	struct _Sensor_Str_
+	{
+		unsigned char Frame_Header; //1个字节
+		short X_speed;	            //2 bytes //2个字节
+		short Y_speed;              //2 bytes //2个字节
+		short Z_speed;              //2 bytes //2个字节
+		short Power_Voltage;        //2 bytes //2个字节
+		Mpu6050_Data Accelerometer; //6 bytes //6个字节
+		Mpu6050_Data Gyroscope;     //6 bytes //6个字节	
+		unsigned char Frame_Tail;   //1 bytes //1个字节
+	}Sensor_Str;
+}SEND_DATA;
+
+typedef struct _SEND_AutoCharge_DATA_  
+{
+	unsigned char buffer[AutoCharge_DATA_SIZE];
+	struct _AutoCharge_Str_
+	{
+		unsigned char Frame_Header; //1 bytes //1个字节
+		short Charging_Current;	    //2 bytes //2个字节
+		unsigned char RED;          //1 bytes //1个字节
+		unsigned char Charging;     //1 bytes //1个字节
+		unsigned char yuliu;		//1 bytes //1个字节
+		unsigned char Frame_Tail;   //1 bytes //1个字节
+	}AutoCharge_Str;
+}SEND_AutoCharge_DATA;
+
+typedef struct _RECEIVE_DATA_  
+{
+	unsigned char buffer[RECEIVE_DATA_SIZE];
+	struct _Control_Str_
+	{
+		unsigned char Frame_Header; //1 bytes //1个字节
+		float X_speed;	            //4 bytes //4个字节
+		float Y_speed;              //4 bytes //4个字节
+		float Z_speed;              //4 bytes //4个字节
+		unsigned char Frame_Tail;   //1 bytes //1个字节
+	}Control_Str;
+}RECEIVE_DATA;
+
+void data_task(void *pvParameters);
+void data_transition(void);
+void USART1_SEND(void);
+void USART3_SEND(void);
+void USART3_Return(void);
+void USART2_Return(void);
+void USART5_SEND(void);
+void USART6_SEND(void);//新增
+
+void CAN_SEND(void);
+void uart1_init(u32 bound);
+void uart2_init(u32 bound);
+void uart3_init(u32 bound);
+void uart5_init(u32 bound);
+void uart6_init(u32 bound);//新增
+
+int USART1_IRQHandler(void);
+int USART2_IRQHandler(void);
+int USART3_IRQHandler(void);
+int UART5_IRQHandler(void);
+int UART6_IRQHandler(void);//新增
+
+float Vz_to_Akm_Angle(float Vx, float Vz);
+float XYZ_Target_Speed_transition(u8 High,u8 Low);
+void usart1_send(u8 data);
+void usart2_send(u8 data);
+void usart3_send(u8 data);
+void usart5_send(u8 data);
+void usart6_send(u8 data);//新增
+
+u8 Check_Sum(unsigned char Count_Number,unsigned char Mode);
+u8 Check_Sum_AutoCharge(unsigned char Count_Number,unsigned char Mode);
+u8 AT_Command_Capture(u8 uart_recv);
+void _System_Reset_(u8 uart_recv);
+
+extern uint8_t FlashWriteFlag;
+
+extern int x1, y1, x2, y2, x3, y3, x4, y4;
+extern int Center_x, Center_y;
+extern uint16_t turn_time;
+extern float X_car,Y_car,X_enemy,Y_enemy;
+extern uint8_t detect;
+extern int Radar_aiming_counter;
+
+
+// 添加环形缓冲区结构
+#define RING_BUF_SIZE 1024
+// 溢出计数器声明
+extern volatile uint32_t usart1_overflow_count;
+extern volatile uint32_t usart3_overflow_count;
+
+typedef struct {
+	uint8_t buffer[RING_BUF_SIZE];
+	volatile uint16_t head;
+	volatile uint16_t tail;
+	volatile uint8_t frame_ready;
+} RingBuffer;
+
+// 声明外部缓冲区
+extern RingBuffer USART1_RxBuffer;
+extern RingBuffer USART3_RxBuffer;
+
+// 添加函数声明
+void RingBuffer_Init(RingBuffer *rb);
+uint8_t RingBuffer_Put(RingBuffer *rb, uint8_t data);
+uint8_t RingBuffer_Get(RingBuffer *rb, uint8_t *data);
+uint16_t RingBuffer_Available(RingBuffer *rb);
+uint8_t RingBuffer_IsEmpty(RingBuffer *rb);
+void USART1_ProcessFrame(void);
+void USART3_ProcessFrame(void);
+
+
+#endif
+
