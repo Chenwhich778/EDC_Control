@@ -1,11 +1,61 @@
 #include "ICM20948.h"
 #include "imu_task.h"
+#include <math.h>
+
+
+#define M_PI 3.14159265358979323846f
+#define RAD_TO_DEG (180.0f / M_PI)
+#define DEG_TO_RAD (M_PI / 180.0f)
+
+
 
 
 ICM20948_ST_SENSOR_DATA gstGyroOffset = {0,0,0};
 
-//磁力计数据
+//??????????
 short magnet[3];
+
+
+// 卡尔曼滤波器结构体
+typedef struct {
+    float Q_angle;   // 过程噪声协方差（角度）
+    float Q_bias;    // 过程噪声协方差（偏差）
+    float R_measure; // 测量噪声协方差
+    
+    float angle;     // 计算出的角度
+    float bias;      // 陀螺仪偏差
+    float rate;      // 未经滤波的角速度
+    
+    float P[2][2];   // 误差协方差矩阵
+} Kalman_t;
+
+// 磁力计数据结构体
+typedef struct {
+    int16_t x;
+    int16_t y;
+    int16_t z;
+} MagData_t;
+
+// 全局变量
+static Kalman_t kalmanYaw = {
+    .Q_angle = 0.001f,
+    .Q_bias = 0.003f,
+    .R_measure = 0.03f,
+    
+    .angle = 0.0f,
+    .bias = 0.0f,
+    .rate = 0.0f,
+    
+    .P[0][0] = 0.0f,
+    .P[0][1] = 0.0f,
+    .P[1][0] = 0.0f,
+    .P[1][1] = 0.0f
+};
+
+static float yaw = 0.0f;  // 最终的偏航角
+static uint32_t last_time = 0;
+static MagData_t magData = {0, 0, 0}; // 磁力计数据
+
 /**************************************************************************
 Function: Initialize TIM2 as the encoder interface mode
 Input   : Gx, Gy, Gz: raw readings (plus or minus) of the x,y, and z axes of the gyroscope
@@ -211,56 +261,75 @@ static void invmsICM20948AccelRead(int16_t* ps16X, int16_t* ps16Y, int16_t* ps16
 }
 
 //磁力计读取的底层实现
-//static void invmsICM20948MagRead(int16_t* ps16X, int16_t* ps16Y, int16_t* ps16Z)
-//{
-//    uint8_t counter = 20;
-//    uint8_t u8Data[MAG_DATA_LEN];
-//    int16_t s16Buf[3] = {0};
-//    uint8_t i;
-//    int32_t s32OutBuf[3] = {0};
-//    static ICM20948_ST_AVG_DATA sstAvgBuf[3];
-//    while( counter>0 )
-//    {
-//        delay_ms(10);
-//        invmsICM20948ReadSecondary( I2C_ADD_ICM20948_AK09916|I2C_ADD_ICM20948_AK09916_READ,
-//                                    REG_ADD_MAG_ST2, 1, u8Data);
+static void invmsICM20948MagRead(int16_t* ps16X, int16_t* ps16Y, int16_t* ps16Z)
+{
+   uint8_t counter = 20;
+   uint8_t u8Data[MAG_DATA_LEN];
+   int16_t s16Buf[3] = {0};
+   uint8_t i;
+   int32_t s32OutBuf[3] = {0};
+   static ICM20948_ST_AVG_DATA sstAvgBuf[3];
+   while( counter>0 )
+   {
+       delay_ms(10);
+       invmsICM20948ReadSecondary( I2C_ADD_ICM20948_AK09916|I2C_ADD_ICM20948_AK09916_READ,
+                                   REG_ADD_MAG_ST2, 1, u8Data);
 
-//        if ((u8Data[0] & 0x01) != 0)
-//            break;
+       if ((u8Data[0] & 0x01) != 0)
+           break;
 
-//        counter--;
-//    }
+       counter--;
+   }
 
-//    if(counter != 0)
-//    {
-//        invmsICM20948ReadSecondary( I2C_ADD_ICM20948_AK09916|I2C_ADD_ICM20948_AK09916_READ,
-//                                    REG_ADD_MAG_DATA,
-//                                    MAG_DATA_LEN,
-//                                    u8Data);
-//        s16Buf[0] = ((int16_t)u8Data[1]<<8) | u8Data[0];
-//        s16Buf[1] = ((int16_t)u8Data[3]<<8) | u8Data[2];
-//        s16Buf[2] = ((int16_t)u8Data[5]<<8) | u8Data[4];
-//    }
-//    else
-//    {
-////        printf("\r\n Mag is bussy \r\n");
-//    }
-//#if 1
-//    for(i = 0; i < 3; i ++)
-//    {
-//        invmsICM20948CalAvgValue(&sstAvgBuf[i].u8Index, sstAvgBuf[i].s16AvgBuffer, s16Buf[i], s32OutBuf + i);
-//    }
+   if(counter != 0)
+   {
+       invmsICM20948ReadSecondary( I2C_ADD_ICM20948_AK09916|I2C_ADD_ICM20948_AK09916_READ,
+                                   REG_ADD_MAG_DATA,
+                                   MAG_DATA_LEN,
+                                   u8Data);
+       s16Buf[0] = ((int16_t)u8Data[1]<<8) | u8Data[0];
+       s16Buf[1] = ((int16_t)u8Data[3]<<8) | u8Data[2];
+       s16Buf[2] = ((int16_t)u8Data[5]<<8) | u8Data[4];
+   }
+   else
+   {
+//        printf("\r\n Mag is bussy \r\n");
+   }
+#if 1
+   for(i = 0; i < 3; i ++)
+   {
+       invmsICM20948CalAvgValue(&sstAvgBuf[i].u8Index, sstAvgBuf[i].s16AvgBuffer, s16Buf[i], s32OutBuf + i);
+   }
 
-//    *ps16X =  s32OutBuf[0];
-//    *ps16Y = -s32OutBuf[1];
-//    *ps16Z = -s32OutBuf[2];
-//#else
-//    *ps16X = s16Buf[0];
-//    *ps16Y = -s16Buf[1];
-//    *ps16Z = -s16Buf[2];
-//#endif
-//    return;
-//}
+   *ps16X =  s32OutBuf[0];
+   *ps16Y = -s32OutBuf[1];
+   *ps16Z = -s32OutBuf[2];
+#else
+   *ps16X = s16Buf[0];
+   *ps16Y = -s16Buf[1];
+   *ps16Z = -s16Buf[2];
+#endif
+   return;
+}
+
+// 磁力计读取函数（外部可调用）
+u8 ICM20948_Get_Mag(void)
+{
+    u8 res = 0;
+    int16_t x, y, z;
+    invmsICM20948MagRead(&x, &y, &z);
+    return res;
+}
+
+// 卡尔曼滤波器初始化
+void Kalman_Init(Kalman_t *kalman, float angle) {
+    kalman->angle = angle;
+    kalman->P[0][0] = 0.0f;
+    kalman->P[0][1] = 0.0f;
+    kalman->P[1][0] = 0.0f;
+    kalman->P[1][1] = 0.0f;
+}
+
 
 static bool invmsICM20948MagCheck(void)
 {
@@ -390,8 +459,79 @@ static void invMSGyroRead(int16_t* ps16GyroX, int16_t* ps16GyroY, int16_t* ps16G
 }
 
 //读取磁力计.若需要使用直接取消注释即可
-//static void invMSMagRead(int16_t* ps16MagnX, int16_t* ps16MagnY, int16_t* ps16MagnZ)
-//{
-//    invmsICM20948MagRead(ps16MagnX, ps16MagnY, ps16MagnZ);
-//    return;
-//}
+static void invMSMagRead(int16_t* ps16MagnX, int16_t* ps16MagnY, int16_t* ps16MagnZ)
+{
+   invmsICM20948MagRead(ps16MagnX, ps16MagnY, ps16MagnZ);
+   return;
+}
+
+
+
+
+// 卡尔曼滤波更新
+float Kalman_Update(Kalman_t *kalman, float newAngle, float newRate, float dt) {
+    // 预测步骤
+    kalman->rate = newRate - kalman->bias;
+    kalman->angle += dt * kalman->rate;
+    
+    // 更新协方差矩阵
+    kalman->P[0][0] += dt * (dt * kalman->P[1][1] - kalman->P[0][1] - kalman->P[1][0] + kalman->Q_angle);
+    kalman->P[0][1] -= dt * kalman->P[1][1];
+    kalman->P[1][0] -= dt * kalman->P[1][1];
+    kalman->P[1][1] += kalman->Q_bias * dt;
+    
+    // 计算卡尔曼增益
+    float S = kalman->P[0][0] + kalman->R_measure;
+    float K[2];
+    K[0] = kalman->P[0][0] / S;
+    K[1] = kalman->P[1][0] / S;
+    
+    // 更新估计
+    float y = newAngle - kalman->angle;
+    kalman->angle += K[0] * y;
+    kalman->bias += K[1] * y;
+    
+    // 更新协方差
+    float P00_temp = kalman->P[0][0];
+    float P01_temp = kalman->P[0][1];
+    
+    kalman->P[0][0] -= K[0] * P00_temp;
+    kalman->P[0][1] -= K[0] * P01_temp;
+    kalman->P[1][0] -= K[1] * P00_temp;
+    kalman->P[1][1] -= K[1] * P01_temp;
+    
+    return kalman->angle;
+}
+
+
+// 从磁力计数据计算偏航角
+float calculateYawFromMag(int16_t mx, int16_t my) {
+    // 计算磁力计偏航角（弧度）
+    float yaw = atan2(-my, mx);
+    
+    // 转换为角度（0-360度）
+    yaw *= RAD_TO_DEG;
+    if(yaw < 0) yaw += 360.0f;
+    
+    return yaw;
+}
+
+// // 初始化函数（在系统启动时调用）
+// void Yaw_Measurement_Init(void) {
+//     // 初始化磁力计
+//     invmsICM20948MagCheck();
+//     invmsICM20948WriteSecondary(I2C_ADD_ICM20948_AK09916|I2C_ADD_ICM20948_AK09916_WRITE,
+//                                REG_ADD_MAG_CNTL2, REG_VAL_MAG_MODE_100HZ);
+    
+//     // 读取初始磁力计值
+//     ICM20948_Get_Mag();
+    
+//     // 计算初始偏航角
+//     float initialYaw = calculateYawFromMag(magData.x, magData.y);
+    
+//     // 初始化卡尔曼滤波器
+//     Kalman_Init(&kalmanYaw, initialYaw);
+    
+//     // 初始化时间
+//     last_time = HAL_GetTick();
+// }

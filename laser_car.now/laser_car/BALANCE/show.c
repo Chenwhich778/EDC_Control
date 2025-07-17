@@ -17,6 +17,7 @@ Output  : none
 ����  ֵ����
 **************************************************************************/
 int Buzzer_count = 25;
+extern int Lock_count;
 void show_task(void *pvParameters)
 {
 	u32 lastWakeTime = getSysTickCnt();
@@ -35,11 +36,11 @@ void show_task(void *pvParameters)
 
 		if (buzzer_mark == 1)
 			Buzzer_count = 0;
-		if (Buzzer_count < 8)
+		if (Buzzer_count < 5)
 			Buzzer_count++;
-		if (Buzzer_count < 8)
+		if (Buzzer_count < 5)
 			Buzzer = 1; // The buzzer is buzzing //����������
-		else if (Buzzer_count == 8)
+		else if (Buzzer_count == 5)
 			{
 				Buzzer = 0;
 				buzzer_mark = 0; // Reset the buzzer flag //����������
@@ -221,7 +222,7 @@ void oled_show(void)
 						if (yaw < 0)
 							OLED_ShowString(80, 0, "-"), oled_showfloat(-yaw, 90, 0, 3, 2);
 						else
-							OLED_ShowString(80, 0, "+"), oled_showfloat(yaw, 90, 0, 3, 2);
+							OLED_ShowString(80, 0, "+"), oled_showfloat(Lock_count, 90, 0, 3, 2);
 					}
 				}
 				else if (Car_Mode == Akm_Car || Car_Mode == Diff_Car || Car_Mode == FourWheel_Car || Car_Mode == Tank_Car || Car_Mode == FourWheel_Car_V550)

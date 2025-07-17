@@ -9,6 +9,7 @@
         "LED.C": "cpp",
         "robot_select_init.h": "c",
         "float.h": "c",
-        "icm20948.h": "c"
+        "icm20948.h": "c",
+        "oledfont.h": "c"
     }
 }

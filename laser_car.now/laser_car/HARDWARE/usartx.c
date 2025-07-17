@@ -13,7 +13,7 @@ uint8_t detect = 0; // 用于检测是否有数据到来
 
 int x1 = -1, y1 = -1, x2 = -1, y2 = -1, x3 = -1, y3 = -1, x4 = -1, y4 = -1;
 
-int Center_x = 343, Center_y = 190;
+int Center_x = 371, Center_y = 257;
 
 void parsePositions(const char *str, float *x_car, float *y_car, float *x_enemy, float *y_enemy);
 void parseCoordinates(const char *str, int *x1, int *y1, int *x2, int *y2,
@@ -111,8 +111,8 @@ void USART3_ProcessFrame(void)
 		parseCoordinates(frame + 1, &x1, &y1, &x2, &y2, &x3, &y3, &x4, &y4);
 		if (x1 == 0 && y1 == 0)
 		{
-			Center_x = 343; // 重置中心点
-			Center_y = 190; // 重置中心点
+			Center_x = 371; // 重置中心点
+			Center_y = 257; // 重置中心点
 		}
 		else
 		{
@@ -125,7 +125,7 @@ void USART3_ProcessFrame(void)
 }
 
 float X_car = 3.8, Y_car = 0;
-float X_enemy = 0, Y_enemy = 0;
+float X_enemy = 0, Y_enemy = -1;
 char position_str[BUF_SIZE] = {0};
 
 /**************************************************************************
@@ -147,8 +147,8 @@ void data_task(void *pvParameters)
 	while (1)
 	{
 		// The task is run at 20hz
-		// 此任务以200Hz的频率运行
-		vTaskDelayUntil(&lastWakeTime, F2T(RATE_200_HZ));
+		// 此任务以100Hz的频率运行
+		vTaskDelayUntil(&lastWakeTime, F2T(RATE_100_HZ));
 		if (Check == 0)
 		{
 			// Assign the data to be sent

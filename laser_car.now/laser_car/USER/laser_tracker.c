@@ -14,8 +14,8 @@ int radar_servo_position = 2048;  // 雷达舵机初始位置（正前方）
 
 int buzzer_mark = 0;
 
-int servo_x = 2000;  // 水平舵机初始值
-int servo_y = 2000;  // 垂直舵机初始值
+int servo_x = 1900;  // 水平舵机初始值
+int servo_y = 2200;  // 垂直舵机初始值
 int last_obj_x = CAMERA_CENTER_X;  // 必须初始化为图像中心坐标
 int last_obj_y = CAMERA_CENTER_Y;  // 必须初始化为图像中心坐标
 int lock_count = 0;
@@ -41,8 +41,8 @@ typedef struct {
     float fine;
 } FineServo;
 
-FineServo fine_servo_x = {2000, 0};
-FineServo fine_servo_y = {2000, 0};
+FineServo fine_servo_x = {1900, 0};
+FineServo fine_servo_y = {2200, 0};
 
 // 辅助函数
 static int constrain(int value, int min, int max) {
@@ -175,7 +175,7 @@ void control_camera(int obj_x, int obj_y) {
     
     // 计算图像坐标误差
     int error_x = CAMERA_CENTER_X - predicted_x;
-    int error_y = predicted_y - CAMERA_CENTER_Y;
+    int error_y = CAMERA_CENTER_Y - predicted_y;
     
     // 超小步进控制参数
     const float FINE_STEP_SIZE = 0.2f;
@@ -189,6 +189,29 @@ void control_camera(int obj_x, int obj_y) {
     // 锁定阈值
     int LOCK_THRESHOLD_X = 40;
     int LOCK_THRESHOLD_Y = 12;
+
+
+if (y1<(257-(y3-y1)/50-2)&&y3>(257+(y3-y1)/50+2)&&x1<(371-(x3-x1)/50-2)&&x3>(371+(x3-x1)/50+2)) {
+        Lock_count++;
+        temp = 0;
+    } else {
+        temp++;
+        if (temp >= 50) {
+        if(Lock_count<205)
+          Lock_count = 0;
+        }
+    }
+
+    if (Lock_count >= 205&&Lock_count < 300) {
+            //jiaojiaojiao
+            buzzer_mark = 1;
+            Lock_count++;
+    }
+    if(Lock_count>=300){
+        Lock_count=0;
+        buzzer_mark=0;
+    }
+
 
     // 检查锁定条件
     if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y) {
@@ -205,40 +228,27 @@ void control_camera(int obj_x, int obj_y) {
         lock_count = 0;
     }
     
-    if (y1<190&&y3>160) {
-        Lock_count++;
-        temp = 0;
-        if (Lock_count >= 30) {
-            //jiaojiaojiao
-            buzzer_mark = 1;
-        }
-    } else {
-        temp++;
-        if (temp >= 5) {
-        Lock_count = 0;
-        buzzer_mark = 0;
-        }
-    }
-
-
-
+    
 
     // 水平方向微步控制
     if (allow_move && abs(error_x) > LOCK_THRESHOLD_X) {
-        float dynamic_step = 1.5*FINE_STEP_SIZE;
+        float dynamic_step1 = 8*FINE_STEP_SIZE;
         if (abs(error_x) > 150) {
-            dynamic_step *= 1.5f;
+            dynamic_step1 *= 1.5f;
         }
-        fine_step_x = (error_x > 0) ? -dynamic_step : dynamic_step;
+        if (abs(error_x) < 40) {
+            dynamic_step1 *= 0.4f;
+        }
+        fine_step_x = (error_x > 0) ? -dynamic_step1 : dynamic_step1;
     }
     
     // 垂直方向微步控制
     if (allow_move && abs(error_y) > LOCK_THRESHOLD_Y) {
-        float dynamic_step = 0.4*FINE_STEP_SIZE;
+        float dynamic_step2 = 1.2*FINE_STEP_SIZE;
         if (abs(error_y) > 200) {
-            dynamic_step *= 1.5f;
+            dynamic_step2 *= 1.5f;
         }
-        fine_step_y = (error_y > 0) ? dynamic_step : -dynamic_step;
+        fine_step_y = (error_y > 0) ? dynamic_step2 : -dynamic_step2;
     }
     
     // 应用精细控制
@@ -259,7 +269,7 @@ void control_camera(int obj_x, int obj_y) {
         
         if (fabs(fine_servo_y.fine) >= 1.0f) {
             int actual_step = (int)truncf(fine_servo_y.fine);
-            fine_servo_y.base = constrain(fine_servo_y.base + actual_step, 1950, 2140);
+            fine_servo_y.base = constrain(fine_servo_y.base + actual_step, 1950, 2350);
             fine_servo_y.fine -= actual_step;
             consecutive_steps++;
             servo_y = fine_servo_y.base;
@@ -267,17 +277,17 @@ void control_camera(int obj_x, int obj_y) {
     }
     
     // 发送指令
-    static int last_servo_x = 2000;
-    static int last_servo_y = 2000;
+    static int last_servo_x = 1900;
+    static int last_servo_y = 2200;
     
     if (servo_x != last_servo_x || servo_y != last_servo_y) {
         if (servo_x != last_servo_x) {
-            int speed = (abs(velocity_x) > 5) ? 150 : 200;
+            int speed = (abs(velocity_x) > 5) ? 300 : 500;
             Servo_SetPosition(1, servo_x, speed);
             last_servo_x = servo_x;
         }
         if (servo_y != last_servo_y) {
-            Servo_SetPosition(2, servo_y, 50);
+            Servo_SetPosition(2, servo_y, 200);
             last_servo_y = servo_y;
         }
     } else {

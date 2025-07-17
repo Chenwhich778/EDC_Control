@@ -15,8 +15,8 @@ typedef enum {
 #define RADAR_MIN_RANGE 1.0f    // 雷达最小探测距离(m)
 
 // 摄像头中心位置
-#define CAMERA_CENTER_X 343
-#define CAMERA_CENTER_Y 189
+#define CAMERA_CENTER_X 372
+#define CAMERA_CENTER_Y 257
 
 // 全局状态
 extern SystemMode system_mode;
