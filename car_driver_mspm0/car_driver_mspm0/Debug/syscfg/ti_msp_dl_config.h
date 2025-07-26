@@ -201,22 +201,6 @@ extern "C" {
 #define USB_UART_0_BAUD_RATE                                            (115200)
 #define USB_UART_0_IBRD_32_MHZ_115200_BAUD                                  (17)
 #define USB_UART_0_FBRD_32_MHZ_115200_BAUD                                  (23)
-/* Defines for UART_2 */
-#define UART_2_INST                                                        UART3
-#define UART_2_INST_FREQUENCY                                           32000000
-#define UART_2_INST_IRQHandler                                  UART3_IRQHandler
-#define UART_2_INST_INT_IRQN                                      UART3_INT_IRQn
-#define GPIO_UART_2_RX_PORT                                                GPIOB
-#define GPIO_UART_2_TX_PORT                                                GPIOB
-#define GPIO_UART_2_RX_PIN                                        DL_GPIO_PIN_13
-#define GPIO_UART_2_TX_PIN                                        DL_GPIO_PIN_12
-#define GPIO_UART_2_IOMUX_RX                                     (IOMUX_PINCM30)
-#define GPIO_UART_2_IOMUX_TX                                     (IOMUX_PINCM29)
-#define GPIO_UART_2_IOMUX_RX_FUNC                      IOMUX_PINCM30_PF_UART3_RX
-#define GPIO_UART_2_IOMUX_TX_FUNC                      IOMUX_PINCM29_PF_UART3_TX
-#define UART_2_BAUD_RATE                                                  (9600)
-#define UART_2_IBRD_32_MHZ_9600_BAUD                                       (208)
-#define UART_2_FBRD_32_MHZ_9600_BAUD                                        (21)
 /* Defines for UART_1 */
 #define UART_1_INST                                                        UART1
 #define UART_1_INST_FREQUENCY                                           32000000
@@ -310,23 +294,22 @@ extern "C" {
 #define OLED_CS_PORT                                                     (GPIOA)
 #define OLED_CS_PIN                                              (DL_GPIO_PIN_3)
 #define OLED_CS_IOMUX                                             (IOMUX_PINCM8)
-/* Defines for CTRL1: GPIOB.14 with pinCMx 31 on package pin 2 */
-#define MOTOR1_CTRL1_PORT                                                (GPIOB)
-#define MOTOR1_CTRL1_PIN                                        (DL_GPIO_PIN_14)
-#define MOTOR1_CTRL1_IOMUX                                       (IOMUX_PINCM31)
+/* Port definition for Pin Group MOTOR1 */
+#define MOTOR1_PORT                                                      (GPIOB)
+
+/* Defines for CTRL1: GPIOB.13 with pinCMx 30 on package pin 1 */
+#define MOTOR1_CTRL1_PIN                                        (DL_GPIO_PIN_13)
+#define MOTOR1_CTRL1_IOMUX                                       (IOMUX_PINCM30)
 /* Defines for CTRL2: GPIOB.17 with pinCMx 43 on package pin 14 */
-#define MOTOR1_CTRL2_PORT                                                (GPIOB)
 #define MOTOR1_CTRL2_PIN                                        (DL_GPIO_PIN_17)
 #define MOTOR1_CTRL2_IOMUX                                       (IOMUX_PINCM43)
-/* Defines for ENCA1: GPIOB.15 with pinCMx 32 on package pin 3 */
-#define MOTOR1_ENCA1_PORT                                                (GPIOB)
-#define MOTOR1_ENCA1_IIDX                                   (DL_GPIO_IIDX_DIO15)
-#define MOTOR1_ENCA1_PIN                                        (DL_GPIO_PIN_15)
-#define MOTOR1_ENCA1_IOMUX                                       (IOMUX_PINCM32)
-/* Defines for ENCB1: GPIOA.12 with pinCMx 34 on package pin 5 */
-#define MOTOR1_ENCB1_PORT                                                (GPIOA)
-#define MOTOR1_ENCB1_PIN                                        (DL_GPIO_PIN_12)
-#define MOTOR1_ENCB1_IOMUX                                       (IOMUX_PINCM34)
+/* Defines for ENCA1: GPIOB.14 with pinCMx 31 on package pin 2 */
+#define MOTOR1_ENCA1_IIDX                                   (DL_GPIO_IIDX_DIO14)
+#define MOTOR1_ENCA1_PIN                                        (DL_GPIO_PIN_14)
+#define MOTOR1_ENCA1_IOMUX                                       (IOMUX_PINCM31)
+/* Defines for ENCB1: GPIOB.15 with pinCMx 32 on package pin 3 */
+#define MOTOR1_ENCB1_PIN                                        (DL_GPIO_PIN_15)
+#define MOTOR1_ENCB1_IOMUX                                       (IOMUX_PINCM32)
 /* Defines for CTRL3: GPIOA.25 with pinCMx 55 on package pin 26 */
 #define MOTOR2_CTRL3_PORT                                                (GPIOA)
 #define MOTOR2_CTRL3_PIN                                        (DL_GPIO_PIN_25)
@@ -421,7 +404,6 @@ void SYSCFG_DL_TIMER_A0_100us_init(void);
 void SYSCFG_DL_TIMER_G12_1ms_init(void);
 void SYSCFG_DL_I2C_0_init(void);
 void SYSCFG_DL_USB_UART_0_init(void);
-void SYSCFG_DL_UART_2_init(void);
 void SYSCFG_DL_UART_1_init(void);
 void SYSCFG_DL_UART_0_init(void);
 void SYSCFG_DL_SPI_0_init(void);

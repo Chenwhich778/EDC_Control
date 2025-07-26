@@ -48,17 +48,6 @@
 #define BIT_6 6
 #define BIT_7 7
 
-// 计算黑线加权位置（0=最左，6=最右，-1=无黑线）
-int Get_Line_Position(uint8_t values[7]) {
-    int sum = 0, count = 0;
-    for (int i = 0; i < 7; i++) {
-        if (values[i]) {
-            sum += i;
-            count++;
-        }
-    }
-    return (count > 0) ? (sum * 10 / count) : -1; // 放大10倍提高精度
-}
 
 
 
@@ -153,15 +142,14 @@ int main(void)
     motor_init();
 
     /* 设置电机速度和方向 -1000 ~ -1 和 1~1000 */
-    set_motor(speed[0],speed[1],speed[2],speed[3]);
+    // set_motor(speed[0],speed[1],speed[2],speed[3]);
 
-    uint8_t sensor_values[7];
+    int8_t sensor_values[7];
     while (1) 
     {
         Read_Grayscale(sensor_values);
-        int pos = Get_Line_Position(sensor_values);
-
-
+        UART0_ProcessFrame();
+    
         a1=get_motor_enc_count(4);
         b1=get_motor_enc_count(3);
 		IMU_getYawPitchRoll(ypr);
@@ -174,7 +162,7 @@ int main(void)
 		OLED_ShowString(0,6,"pos :");
 		sprintf(syaw, "%.2f", ypr[0]);
 		sprintf(spitch, "%d", EN);
-		sprintf(sroll, "%d", pos);
+		sprintf(sroll, "%d", x*1000+y);
         sprintf(sM4_C, "%d", a2-a1);
         sprintf(sM3_C, "%d", b2-b1);
         OLED_ShowString(96,0,sM3_C);
@@ -194,7 +182,7 @@ int main(void)
         ypr[0]-=yaw_f;
 
         if(EN == 1)
-        set_motor(100-ypr[0]*50,100+ypr[0]*50,200-ypr[0]*50,200+ypr[0]*50);
+        set_motor(100-ypr[0]*50,100+(ypr[0])*50,(200-ypr[0]*10)*0.5,(200+ypr[0]*10)*0.5);
         else
         stop_all_motors();
 

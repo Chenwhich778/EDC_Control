@@ -138,10 +138,13 @@ void SPI0_reload(void);
 //YAREYARE EVERLOSS
 
 extern int8_t EN;
+extern int x;
+extern int y;
+
 
 void stop_all_motors(void);
 
-
+void UART0_ProcessFrame(void);
 
 
 
