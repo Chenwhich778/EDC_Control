@@ -13,14 +13,14 @@ float integral_x = 0, integral_y = 0;          // 积分项
 float prev_error_x = 0, prev_error_y = 0;      // 上一次误差
 
 // 水平方向PID参数（较大系数）
-#define KP_X      0.1f  // 比例系数（较大值）
-#define KI_X      0.004f  // 积分系数
-#define KD_X      0.08f // 微分系
+#define KP_X      0.07f  // 比例系数（较大值）
+#define KI_X      0.003f  // 积分系数
+#define KD_X      0.06f // 微分系
 
 // 垂直方向PID参数（较小系数）
-#define KP_Y      0.009f  // 比例系数（较小值）
+#define KP_Y      0.01f  // 比例系数（较小值）
 #define KI_Y      0.0005f
-#define KD_Y      0.000f
+#define KD_Y      0.001f
 
 // 系统全局变量
 SystemMode system_mode = MODE_RADAR_SCANNING;   // 当前系统模式
@@ -289,7 +289,7 @@ void control_camera(int obj_x, int obj_y) {
         fine_servo_y.fine += fine_step_y;
         if (fabs(fine_servo_y.fine) >= 1.0f) {
             int actual_step = (int)truncf(fine_servo_y.fine);
-            fine_servo_y.base = constrain(fine_servo_y.base + actual_step, 2100, 2350);
+            fine_servo_y.base = constrain(fine_servo_y.base + actual_step, 2000, 2550);
             fine_servo_y.fine -= actual_step;
             consecutive_steps++;
             servo_y = fine_servo_y.base;
@@ -305,7 +305,6 @@ void control_camera(int obj_x, int obj_y) {
             last_servo_x = servo_x;
         }
         if (servo_y != last_servo_y) {
-            Servo_SetPosition(2, servo_y, 200);
             last_servo_y = servo_y;
         }
     } else {

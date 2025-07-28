@@ -16,7 +16,7 @@ typedef enum {
 
 // 摄像头中心位置
 #define CAMERA_CENTER_X 359
-#define CAMERA_CENTER_Y 224
+#define CAMERA_CENTER_Y 221
 
 // 全局状态
 extern int servo_x;        // 水平舵机初始值

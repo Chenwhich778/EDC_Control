@@ -68,7 +68,7 @@ char sM3_C[4];
 float ypr[3]; // 上传yaw pitch roll的值
 float adjust=0.0;
 /* 记录上一时刻和当前时刻编码器数值 */
-uint32_t a1,a2,b1,b2;
+// uint32_t a1,a2,b1,b2;
 
 /* 记录感为灰度I2C返回数值 */
 unsigned char Digtal;
@@ -81,6 +81,8 @@ float yaw_f=0;
 float pre_yaw=0.0;
 float mibu=0.0;
 char input='0';
+float speed3=0.0;
+float speed4=0.0;
 /* 设定小车启动默认电机数值 */
 uint16_t speed[4]={0,0,0,0};
 
@@ -105,6 +107,9 @@ void update_speed_sum(uint8_t data, uint32_t* speed_sum)
 int main(void)
 {
     /* 初始化系统，由sysconfig配置 */
+    int turn=1;
+    int turn_flag=0;
+    int turn_count=0;
     SYSCFG_DL_init();
 
     /* 初始化调试串口 */
@@ -120,18 +125,18 @@ int main(void)
     /* IMU初始化，静止不动采集数据1s左右 */
 	IMU_init();
     NVIC_EnableIRQ(TIMER_A0_100us_INST_INT_IRQN);
-    NVIC_EnableIRQ(TIMER_G12_1ms_INST_INT_IRQN);
-    for (int i=0; i<200; i++) {
+    // NVIC_EnableIRQ(TIMER_G12_1ms_INST_INT_IRQN);
+    for (int i=0; i <100; i++) {
     IMU_getYawPitchRoll(ypr); 
-    Servo_SetPosition(1, prime_x1 , 200);
-    Servo_SetPosition(2, prime_y1 , 200);
+    Servo_SetPosition(1, prime_x1 , 500);
+    Servo_SetPosition(2, prime_y1 , 500);
     delay_ms(10);
     }
 
     /* 开始记录静止时yaw数值 */
     yaw_f=ypr[0];
     
-    delay_ms(100); // 等待部署
+    delay_ms(150); // 等待部署
 
     /* 按键外部触发中断使能 */
     key1_IRQ_init();
@@ -152,9 +157,9 @@ int main(void)
 
     int8_t sensor_values[7];
     
-    int base_speed = 180;    // 基础速度
+    int base_speed = 170;    // 基础速度
     float kp = 30.0;         // 比例控制系数
-    int weights[7] = {-3, -2, -1.5, 0, 1.5, 2, 3}; // 传感器权重（右负左正）
+    int weights[7] = {-1.5, -1, -0.5, 0, 0.5, 1, 1.5}; // 传感器权重（右负左正）
     float error = 0;
     float last_error = 0;
     float steer = 0;
@@ -162,11 +167,11 @@ int main(void)
 
     while (1) 
     {
-        //Read_Grayscale(sensor_values);
+        Read_Grayscale(sensor_values);
         UART0_ProcessFrame();
-        
-        a1=get_motor_enc_count(4);
-        b1=get_motor_enc_count(3);
+        yaw_f-=0.01478;
+        // a1=get_motor_enc_count(4);
+        // b1=get_motor_enc_count(3);
 		IMU_getYawPitchRoll(ypr);
         ypr[0]-=yaw_f;
         float tmp=ypr[0]-pre_yaw;
@@ -180,8 +185,10 @@ int main(void)
         // ypr[0]-=360;
         // while(ypr[0]<-180)
         // ypr[0]+=360;
-        uint8_t keyboard=getKeyValue();
-        input=get_keychar(keyboard);
+        // if (EN!=1) {
+        //     uint8_t keyboard=getKeyValue();
+        //     input=get_keychar(keyboard);
+        // }
         OLED_Clear();
 		OLED_DrawBMP(0, 0, 16, 2  , qishi);
 		OLED_ShowString(16,0,"M3:");
@@ -191,11 +198,13 @@ int main(void)
 		OLED_ShowString(0,6,"x :");
         OLED_ShowString(64,6,"y :");
 		sprintf(syaw, "%.2f", ypr[0]);
-		sprintf(spitch, "%d  %c", EN,input);
+		sprintf(spitch, "%d  %d", turn_flag,turn_count);
 		sprintf(sroll, "%d", x);
         sprintf(srol, "%d", y);
-        sprintf(sM4_C, "%d", a2-a1);
-        sprintf(sM3_C, "%d", b2-b1);
+        // float speed3=(a1-a2)*10;
+        // float speed4=(b1-b2)*10;
+        sprintf(sM3_C, "%.2f", speed3);
+        sprintf(sM4_C, "%.2f", speed4);
         OLED_ShowString(96,0,sM3_C);
 		OLED_ShowString(40,0,sM4_C);
 		OLED_ShowString(54,2,syaw);
@@ -203,8 +212,8 @@ int main(void)
 		OLED_ShowString(24,6,sroll);
         OLED_ShowString(96,6,srol);
         SPI0_reload();
-        a2=a1;
-        b2=b1;
+        // a2=a1;
+        // b2=b1;
 
         /* 根据灰度数据行驶寻曲线 */
 		//  Digtal=IIC_Get_Digtal();
@@ -214,48 +223,84 @@ int main(void)
         
         adjust=-ypr[0]/360*4096;
         //  Servo_SetPosition(1,servo_x+adjust,1000);
+        if(turn_flag==0){
          control_camera(x, y);
-         Servo_SetPosition(1, servo_x+adjust, 500);
+         Servo_SetPosition(1, servo_x+adjust, 1200);
+        Servo_SetPosition(2, servo_y, 1000);
+
+        }
+        if(turn_flag==1){
+         control_camera(x, y);
+         Servo_SetPosition(1, servo_x+adjust, 1200);
+         Servo_SetPosition(2, servo_y, 1000);
+
+        }
 
 
-// // 灰度循迹算法 ======================================
-//         int line_position = 0;
-//         int sensor_count = 0;
-//         error = 0;
+// 灰度循迹算法 ======================================
+        int line_position = 0;
+        int sensor_count = 0;
+        error = 0;
         
-//         // 1. 计算黑线位置（加权平均）
-//         for (int i = 0; i < 7; i++) {
-//             if (sensor_values[i] == 0) { // 检测到黑线
-//                 error += weights[i];
-//                 sensor_count++;
-//             }
-//         }
+        // 1. 计算黑线位置（加权平均）
+        for (int i = 0; i < 7; i++) {
+            if (sensor_values[i] == 0) { // 检测到黑线
+                error += weights[i];
+                sensor_count++;
+            }
+        }
         
-//         //2. 处理不同检测情况
-//         if (sensor_count > 0) {
-//             error /= sensor_count; // 计算平均位置误差
-//         } else {
-//          //   未检测到黑线：使用上次误差或停止
-//             error = (last_error > 0) ? 3.0 : -3.0;
-//         }
+       if(sensor_count>=4&&turn==1)
+
+       {
+         turn_flag=1;
+         turn=0;
+         turn_count=-32;
+         
+       }
+
+
+        //2. 处理不同检测情况
+        if (sensor_count > 0) {
+            error /= sensor_count; // 计算平均位置误差
+        } else {
+         //   未检测到黑线：使用上次误差或停止
+            error = (last_error > 0) ? 3.0 : -3.0;
+        }
         
-//         // 3. 比例控制计算转向量
-//         steer = kp * error;
-//         last_error = error; // 保存本次误差
+        // 3. 比例控制计算转向量
+        steer = kp * error;
+        last_error = error; // 保存本次误差
         
-//         // 4. 计算电机速度 (差速转向)
-//         int left_speed  = base_speed - steer;
-//         int right_speed = base_speed + steer;
+        // 4. 计算电机速度 (差速转向)
+        int left_speed  = base_speed - steer;
+        int right_speed = base_speed + steer;
         
-//         // 5. 速度限制 (防止超限)
-//         left_speed = (left_speed < -500) ? -500 : (left_speed > 500 ? 500 : left_speed);
-//         right_speed = (right_speed < -500) ? -500 : (right_speed > 500 ? 500 : right_speed);
-        if(EN == 1)
+        // 5. 速度限制 (防止超限)
+        left_speed = (left_speed < -500) ? -500 : (left_speed > 500 ? 500 : left_speed);
+        right_speed = (right_speed < -500) ? -500 : (right_speed > 500 ? 500 : right_speed);
+        if(EN == 1){
         // set_motor(100-ypr[0]*50,100+(ypr[0])*50,(200-ypr[0]*10)*0.5,(200+ypr[0]*10)*0.5);
        //此处加入灰度循迹代码
-        set_motor(100, 100, 200, 200);
+        // if (turn_count<0) {
+        //     turn_count++;
+        // }
+        // if(turn_flag==0){
+        // if(turn_count++>80)
+        //   set_motor(0, 0, left_speed, right_speed);
+        // else
+        //  stop_all_motors();
+        // }
+        // else if(turn_flag==1&&turn_count>=0){
+        //     set_motor(0, 0, 165, -165);
+        //     turn_count++;
+        //     if(turn_count>40)
+        //     turn_flag=0;
+        // } 
+        set_motor(0, 0, 200, 200);
+        }
         else
-        stop_all_motors();
+         stop_all_motors();
 
         /* 轮询基本延时 */
           delay_ms(10);

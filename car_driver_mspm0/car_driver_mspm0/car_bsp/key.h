@@ -32,7 +32,13 @@
 #define KEY_0 14
 #define KEY_jing 15
 #define KEY_D 16
+
+extern char key_buffer[64];
+extern uint16_t key_index;
+extern uint16_t count;
+extern bool load_flag;
 /* 获取矩阵键盘键值 */
 int getKeyValue(void);
 char get_keychar(uint8_t keyboard);
+void load_input(void);
 #endif

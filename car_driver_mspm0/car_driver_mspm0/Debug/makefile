@@ -169,7 +169,7 @@ all: $(OBJS) $(GEN_CMDS)
 car_driver_mspm0.out: $(OBJS) $(GEN_CMDS)
 	@echo 'Building target: "$@"'
 	@echo 'Invoking: Arm Linker'
-	"D:/ti/CCS_20.2/ccs/tools/compiler/ti-cgt-armllvm_4.0.3.LTS/bin/tiarmclang.exe" @"syscfg/device.opt"  -march=thumbv6m -mcpu=cortex-m0plus -mfloat-abi=soft -mlittle-endian -mthumb -O0 -gdwarf-3 -Wl,-m"car_driver_mspm0.map" -Wl,-i"D:/ti/CCS_20.2/mspm0_sdk_2_05_01_00/source" -Wl,-i"C:/Users/28248/Desktop/cocode/EDC_Control/car_driver_mspm0/car_driver_mspm0/Debug/syscfg" -Wl,-i"D:/ti/CCS_20.2/ccs/tools/compiler/ti-cgt-armllvm_4.0.3.LTS/lib" -Wl,--diag_wrap=off -Wl,--display_error_number -Wl,--warn_sections -Wl,--xml_link_info="car_driver_mspm0_linkInfo.xml" -Wl,--rom_model -o "car_driver_mspm0.out" $(ORDERED_OBJS)
+	"D:/ti/CCS_20.2/ccs/tools/compiler/ti-cgt-armllvm_4.0.3.LTS/bin/tiarmclang.exe" @"syscfg/device.opt"  -march=thumbv6m -mcpu=cortex-m0plus -mfloat-abi=soft -mlittle-endian -mthumb -O0 -gdwarf-3 -Wl,-m"car_driver_mspm0.map" -Wl,-i"D:/ti/CCS_20.2/mspm0_sdk_2_05_01_00/source" -Wl,-i"C:/Users/28248/Desktop/cocode/car_driver_mspm0/car_driver_mspm0/Debug/syscfg" -Wl,-i"D:/ti/CCS_20.2/ccs/tools/compiler/ti-cgt-armllvm_4.0.3.LTS/lib" -Wl,--diag_wrap=off -Wl,--display_error_number -Wl,--warn_sections -Wl,--xml_link_info="car_driver_mspm0_linkInfo.xml" -Wl,--rom_model -o "car_driver_mspm0.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: "$@"'
 	@echo ' '
 
