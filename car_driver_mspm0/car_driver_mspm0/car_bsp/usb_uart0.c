@@ -1,8 +1,8 @@
 #include "car_bsp.h"
 
 
-int x = 0;
-int y = 0;
+int x = 359;
+int y = 225;
 // 修改后的 UART0 接收缓冲区结构（使用普通缓冲区）
 typedef struct {
     uint8_t buffer[128];  // 普通缓冲区
@@ -85,8 +85,12 @@ void UART0_ProcessFrame(void)
     if (frame[0] == '!') {
         int result = sscanf(&frame[1], "%d,%d", &x, &y);  // 添加取地址符&
         // 如果解析失败（返回值小于2），可设置默认值
+        if(x == 0&&y==0)
+        {
+            x = 359;
+            y= 225;
+        }
     }
-
     // 重置接收状态
     UART0_RxBuffer.index = 0;
     UART0_RxBuffer.frame_ready = 0;

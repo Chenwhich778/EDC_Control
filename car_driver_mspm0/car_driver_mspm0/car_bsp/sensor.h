@@ -4,6 +4,6 @@
 #include <stdint.h>
 
 // 读取7路数字灰度传感器（0=白线，1=黑线）
-void Read_Grayscale(int8_t values[7]);
+//void Read_Grayscale(int8_t values[7]);
 
 #endif

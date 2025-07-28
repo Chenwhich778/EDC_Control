@@ -17,7 +17,7 @@ void GROUP1_IRQHandler(void) // Group1的中断服务函数
       GPIOB, KEY1_PB5_PIN | MOTOR1_ENCA1_PIN | MOTOR2_ENCA2_PIN);
 
     if (((gpioB & KEY1_PB5_PIN) == KEY1_PB5_PIN) && rKEY1 == 0) {
-            EN = -EN;
+            EN = 1;
         }
   if (((gpioB & MOTOR1_ENCA1_PIN) == MOTOR1_ENCA1_PIN) && rMOTOR_ENCA1 == 0) {
     if (rMOTOR_ENCB1) {

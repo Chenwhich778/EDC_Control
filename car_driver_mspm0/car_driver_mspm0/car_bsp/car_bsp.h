@@ -15,6 +15,7 @@
 #include "laser_tracker.h"  //servo_protocol.h在laser_tracker.h中无需再次添加
 #include "usart.h"
 #include "sensor.h"
+#include "key.h"
 
 #define rKEY1 DL_GPIO_readPins(KEY1_PORT, KEY1_PB5_PIN)
 /*********************************************usb_uart0*********************************************************/
@@ -101,8 +102,8 @@ void vcc_adc_IQR_init(void);
 uint16_t get_vcc_adc_value(void);
 /**************************************************************************************************************/
 /********************************************motor*************************************************************/
-#define MOTOR1_CTRL1(x)  ( (x) ? DL_GPIO_setPins(MOTOR1_PORT,MOTOR1_CTRL1_PIN) : DL_GPIO_clearPins(MOTOR1_PORT,MOTOR1_CTRL1_PIN) )
-#define MOTOR1_CTRL2(x)  ( (x) ? DL_GPIO_setPins(MOTOR1_PORT,MOTOR1_CTRL2_PIN) : DL_GPIO_clearPins(MOTOR1_PORT,MOTOR1_CTRL2_PIN) )
+#define MOTOR1_CTRL1(x)  ( (x) ? DL_GPIO_setPins(MOTOR1_CTRL1_PORT,MOTOR1_CTRL1_PIN) : DL_GPIO_clearPins(MOTOR1_CTRL1_PORT,MOTOR1_CTRL1_PIN) )
+#define MOTOR1_CTRL2(x)  ( (x) ? DL_GPIO_setPins(MOTOR1_CTRL2_PORT,MOTOR1_CTRL2_PIN) : DL_GPIO_clearPins(MOTOR1_CTRL2_PORT,MOTOR1_CTRL2_PIN) )
 
 #define MOTOR2_CTRL1(x)  ( (x) ? DL_GPIO_setPins(MOTOR2_CTRL3_PORT,MOTOR2_CTRL3_PIN) : DL_GPIO_clearPins(MOTOR2_CTRL3_PORT,MOTOR2_CTRL3_PIN) )
 #define MOTOR2_CTRL2(x)  ( (x) ? DL_GPIO_setPins(MOTOR2_CTRL4_PORT,MOTOR2_CTRL4_PIN) : DL_GPIO_clearPins(MOTOR2_CTRL4_PORT,MOTOR2_CTRL4_PIN) )
@@ -114,8 +115,8 @@ uint16_t get_vcc_adc_value(void);
 #define MOTOR4_CTRL2(x)  ( (x) ? DL_GPIO_setPins(MOTOR4_CTRL8_PORT,MOTOR4_CTRL8_PIN) : DL_GPIO_clearPins(MOTOR4_CTRL8_PORT,MOTOR4_CTRL8_PIN) )
 
 
-#define rMOTOR_ENCA1 DL_GPIO_readPins(MOTOR1_PORT, MOTOR1_ENCA1_PIN)
-#define rMOTOR_ENCB1 DL_GPIO_readPins(MOTOR1_PORT, MOTOR1_ENCB1_PIN)
+#define rMOTOR_ENCA1 DL_GPIO_readPins(MOTOR1_ENCA1_PORT, MOTOR1_ENCA1_PIN)
+#define rMOTOR_ENCB1 DL_GPIO_readPins(MOTOR1_ENCA1_PORT, MOTOR1_ENCB1_PIN)
 
 #define rMOTOR_ENCA2 DL_GPIO_readPins(MOTOR2_ENCA2_PORT, MOTOR2_ENCA2_PIN)
 #define rMOTOR_ENCB2 DL_GPIO_readPins(MOTOR2_ENCB2_PORT, MOTOR2_ENCB2_PIN)
