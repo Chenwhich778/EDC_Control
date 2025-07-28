@@ -3,6 +3,7 @@
 "./startup_mspm0g350x_ticlang.o"
 "./main.o"
 "./car_bsp/Buzzer.o"
+"./car_bsp/PID.o"
 "./car_bsp/key.o"
 "./car_bsp/key1.o"
 "./car_bsp/laser_tracker.o"

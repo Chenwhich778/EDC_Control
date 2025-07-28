@@ -38,6 +38,7 @@
 #include "ti_msp_dl_config.h"
 #include "car_bsp/car_bsp.h"
 #include "../car_bsp/OLED/oledfont_bmp.h"
+#include "math.h"
 
 // 定义位索引（0=最低位/最右侧，7=最高位/最左侧）
 #define BIT_0 0
@@ -79,6 +80,7 @@ uint32_t speed_sum=0;
 float yaw_f=0;
 float pre_yaw=0.0;
 float mibu=0.0;
+char input='0';
 /* 设定小车启动默认电机数值 */
 uint16_t speed[4]={0,0,0,0};
 
@@ -167,18 +169,19 @@ int main(void)
         b1=get_motor_enc_count(3);
 		IMU_getYawPitchRoll(ypr);
         ypr[0]-=yaw_f;
-        if(pre_yaw>70&&ypr[0]<0)
-            mibu+=180;  
-        else if(pre_yaw<0&&ypr[0]>70)
-            mibu-=180;
+        float tmp=ypr[0]-pre_yaw;
+        if(tmp<-200)
+            mibu=+360;
+        else if(tmp>200)
+            mibu-=360;
         pre_yaw=ypr[0];
         ypr[0]+=mibu;
-        while(ypr[0]>180)
-        ypr[0]-=360;
-        while(ypr[0]<-180)
-        ypr[0]+=360;
+        // while(ypr[0]>180)
+        // ypr[0]-=360;
+        // while(ypr[0]<-180)
+        // ypr[0]+=360;
         uint8_t keyboard=getKeyValue();
-        //uint8_t keyboard=9;
+        input=get_keychar(keyboard);
         OLED_Clear();
 		OLED_DrawBMP(0, 0, 16, 2  , qishi);
 		OLED_ShowString(16,0,"M3:");
@@ -188,7 +191,7 @@ int main(void)
 		OLED_ShowString(0,6,"x :");
         OLED_ShowString(64,6,"y :");
 		sprintf(syaw, "%.2f", ypr[0]);
-		sprintf(spitch, "%d  %d", EN,keyboard);
+		sprintf(spitch, "%d  %c", EN,input);
 		sprintf(sroll, "%d", x);
         sprintf(srol, "%d", y);
         sprintf(sM4_C, "%d", a2-a1);
@@ -215,46 +218,46 @@ int main(void)
          Servo_SetPosition(1, servo_x+adjust, 500);
 
 
-// 灰度循迹算法 ======================================
-        int line_position = 0;
-        int sensor_count = 0;
-        error = 0;
+// // 灰度循迹算法 ======================================
+//         int line_position = 0;
+//         int sensor_count = 0;
+//         error = 0;
         
-        // 1. 计算黑线位置（加权平均）
-        for (int i = 0; i < 7; i++) {
-            if (sensor_values[i] == 0) { // 检测到黑线
-                error += weights[i];
-                sensor_count++;
-            }
-        }
+//         // 1. 计算黑线位置（加权平均）
+//         for (int i = 0; i < 7; i++) {
+//             if (sensor_values[i] == 0) { // 检测到黑线
+//                 error += weights[i];
+//                 sensor_count++;
+//             }
+//         }
         
-        //2. 处理不同检测情况
-        if (sensor_count > 0) {
-            error /= sensor_count; // 计算平均位置误差
-        } else {
-         //   未检测到黑线：使用上次误差或停止
-            error = (last_error > 0) ? 3.0 : -3.0;
-        }
+//         //2. 处理不同检测情况
+//         if (sensor_count > 0) {
+//             error /= sensor_count; // 计算平均位置误差
+//         } else {
+//          //   未检测到黑线：使用上次误差或停止
+//             error = (last_error > 0) ? 3.0 : -3.0;
+//         }
         
-        // 3. 比例控制计算转向量
-        steer = kp * error;
-        last_error = error; // 保存本次误差
+//         // 3. 比例控制计算转向量
+//         steer = kp * error;
+//         last_error = error; // 保存本次误差
         
-        // 4. 计算电机速度 (差速转向)
-        int left_speed  = base_speed - steer;
-        int right_speed = base_speed + steer;
+//         // 4. 计算电机速度 (差速转向)
+//         int left_speed  = base_speed - steer;
+//         int right_speed = base_speed + steer;
         
-        // 5. 速度限制 (防止超限)
-        left_speed = (left_speed < -500) ? -500 : (left_speed > 500 ? 500 : left_speed);
-        right_speed = (right_speed < -500) ? -500 : (right_speed > 500 ? 500 : right_speed);
+//         // 5. 速度限制 (防止超限)
+//         left_speed = (left_speed < -500) ? -500 : (left_speed > 500 ? 500 : left_speed);
+//         right_speed = (right_speed < -500) ? -500 : (right_speed > 500 ? 500 : right_speed);
         if(EN == 1)
         // set_motor(100-ypr[0]*50,100+(ypr[0])*50,(200-ypr[0]*10)*0.5,(200+ypr[0]*10)*0.5);
        //此处加入灰度循迹代码
-        set_motor(left_speed, right_speed, left_speed, right_speed);
+        set_motor(100, 100, 200, 200);
         else
         stop_all_motors();
 
         /* 轮询基本延时 */
-        //  delay_ms(10);
+          delay_ms(10);
     }
 }
