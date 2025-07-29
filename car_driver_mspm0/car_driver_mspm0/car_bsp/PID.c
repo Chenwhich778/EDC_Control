@@ -9,10 +9,10 @@ void PID_Init(PID_Controller *pid, float Kp, float Ki, float Kd, float Ts,float 
     pid->Ki = Ki;
     pid->Kd = Kd;
     pid->Ts = Ts;
-    pid->integral = 0.0f;
+    pid->integral = 75.0f;
     pid->prev_error = 0.0f;
     pid->max_output = max;
-    pid->max_integral = pid->max_output; // �����޷�Ϊ������50%
+    pid->max_integral = pid->max_output*0.5; // �����޷�Ϊ������50%
 	pid->prev_d=0.0f;
 }
     

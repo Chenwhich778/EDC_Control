@@ -4,6 +4,7 @@
 "./main.o"
 "./car_bsp/Buzzer.o"
 "./car_bsp/PID.o"
+"./car_bsp/draw.o"
 "./car_bsp/key.o"
 "./car_bsp/key1.o"
 "./car_bsp/laser_tracker.o"

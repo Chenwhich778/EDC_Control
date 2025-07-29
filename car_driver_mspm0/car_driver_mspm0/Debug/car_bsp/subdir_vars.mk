@@ -8,6 +8,7 @@ SHELL = cmd.exe
 C_SRCS += \
 ../car_bsp/Buzzer.c \
 ../car_bsp/PID.c \
+../car_bsp/draw.c \
 ../car_bsp/key.c \
 ../car_bsp/key1.c \
 ../car_bsp/laser_tracker.c \
@@ -22,6 +23,7 @@ C_SRCS += \
 C_DEPS += \
 ./car_bsp/Buzzer.d \
 ./car_bsp/PID.d \
+./car_bsp/draw.d \
 ./car_bsp/key.d \
 ./car_bsp/key1.d \
 ./car_bsp/laser_tracker.d \
@@ -36,6 +38,7 @@ C_DEPS += \
 OBJS += \
 ./car_bsp/Buzzer.o \
 ./car_bsp/PID.o \
+./car_bsp/draw.o \
 ./car_bsp/key.o \
 ./car_bsp/key1.o \
 ./car_bsp/laser_tracker.o \
@@ -50,6 +53,7 @@ OBJS += \
 OBJS__QUOTED += \
 "car_bsp\Buzzer.o" \
 "car_bsp\PID.o" \
+"car_bsp\draw.o" \
 "car_bsp\key.o" \
 "car_bsp\key1.o" \
 "car_bsp\laser_tracker.o" \
@@ -64,6 +68,7 @@ OBJS__QUOTED += \
 C_DEPS__QUOTED += \
 "car_bsp\Buzzer.d" \
 "car_bsp\PID.d" \
+"car_bsp\draw.d" \
 "car_bsp\key.d" \
 "car_bsp\key1.d" \
 "car_bsp\laser_tracker.d" \
@@ -78,6 +83,7 @@ C_DEPS__QUOTED += \
 C_SRCS__QUOTED += \
 "../car_bsp/Buzzer.c" \
 "../car_bsp/PID.c" \
+"../car_bsp/draw.c" \
 "../car_bsp/key.c" \
 "../car_bsp/key1.c" \
 "../car_bsp/laser_tracker.c" \

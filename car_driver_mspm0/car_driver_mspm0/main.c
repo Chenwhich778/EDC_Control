@@ -113,9 +113,12 @@ int main(void)
     int turn=1;
     int turn_flag=0;
     int turn_count=0;
+    int base_speed = 50;  
     SYSCFG_DL_init();
-    PID_Init(&pid_left, 100, 8, 0, 0.01, 1000);
-    PID_Init(&pid_right, 5, 0.1, 0.01, 0.01, 1000);
+    PID_Init(&pid_left, 3, 2.3, 0.008, 0.01, 1000);
+    PID_Init(&pid_right, 3, 2.3, 0.008, 0.01, 1000);
+    pid_left.integral=base_speed*2;
+    pid_right.integral=base_speed*2;
     /* 初始化调试串口 */
     usb_uart0_IRQ_init();
     delay_ms(100); // 等待部署
@@ -161,7 +164,7 @@ int main(void)
 
     int8_t sensor_values[7];
     
-    int base_speed = 170;    // 基础速度
+      // 基础速度
     float kp = 30.0;         // 比例控制系数
     int weights[7] = {-1.5, -1, -0.5, 0, 0.5, 1, 1.5}; // 传感器权重（右负左正）
     float error = 0;
@@ -309,9 +312,9 @@ printf("%.2f,%.2f\n",speed3,speed4);
         //     if(turn_count>40)
         //     turn_flag=0;
         // }
-        float output_left=PID_Compute(&pid_left, 100, speed3);
-        float output_right=PID_Compute(&pid_right, 50, speed4);
-        set_motor(1, 1, left_speed, 1);
+        float output_left=PID_Compute(&pid_left, base_speed, speed3);
+        float output_right=PID_Compute(&pid_right, base_speed, speed4);
+        set_motor(1, 1, output_left, output_right);
         }
         else
          stop_all_motors();
