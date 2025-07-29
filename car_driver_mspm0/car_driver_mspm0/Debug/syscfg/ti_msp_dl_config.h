@@ -161,11 +161,6 @@ extern "C" {
 #define TIMER_A0_100us_INST_IRQHandler                          TIMA0_IRQHandler
 #define TIMER_A0_100us_INST_INT_IRQN                            (TIMA0_INT_IRQn)
 #define TIMER_A0_100us_INST_LOAD_VALUE                                    (159U)
-/* Defines for TIMER_G12_1ms */
-#define TIMER_G12_1ms_INST                                              (TIMG12)
-#define TIMER_G12_1ms_INST_IRQHandler                          TIMG12_IRQHandler
-#define TIMER_G12_1ms_INST_INT_IRQN                            (TIMG12_INT_IRQn)
-#define TIMER_G12_1ms_INST_LOAD_VALUE                                    (3199U)
 
 
 
@@ -279,8 +274,8 @@ extern "C" {
 #define KEY1_PORT                                                        (GPIOB)
 
 /* Defines for PB5: GPIOB.5 with pinCMx 18 on package pin 53 */
-// groups represented: ["MOTOR1","MOTOR2","MOTOR4","KEY1"]
-// pins affected: ["ENCA1","ENCA2","ENCA4","PB5"]
+// groups represented: ["MOTOR1","MOTOR2","MOTOR3","MOTOR4","KEY1"]
+// pins affected: ["ENCA1","ENCA2","ENCB3","ENCA4","PB5"]
 #define GPIO_MULTIPLE_GPIOB_INT_IRQN                            (GPIOB_INT_IRQn)
 #define GPIO_MULTIPLE_GPIOB_INT_IIDX            (DL_INTERRUPT_GROUP1_IIDX_GPIOB)
 #define KEY1_PB5_IIDX                                        (DL_GPIO_IIDX_DIO5)
@@ -347,6 +342,7 @@ extern "C" {
 #define MOTOR3_CTRL6_IOMUX                                       (IOMUX_PINCM10)
 /* Defines for ENCB3: GPIOB.20 with pinCMx 48 on package pin 19 */
 #define MOTOR3_ENCB3_PORT                                                (GPIOB)
+#define MOTOR3_ENCB3_IIDX                                   (DL_GPIO_IIDX_DIO20)
 #define MOTOR3_ENCB3_PIN                                        (DL_GPIO_PIN_20)
 #define MOTOR3_ENCB3_IOMUX                                       (IOMUX_PINCM48)
 /* Defines for CTRL7: GPIOA.6 with pinCMx 11 on package pin 46 */
@@ -411,7 +407,6 @@ void SYSCFG_DL_PWM_MOTOR_3_4_init(void);
 void SYSCFG_DL_TIMER_M4_init(void);
 void SYSCFG_DL_TIMER_M3_init(void);
 void SYSCFG_DL_TIMER_A0_100us_init(void);
-void SYSCFG_DL_TIMER_G12_1ms_init(void);
 void SYSCFG_DL_I2C_0_init(void);
 void SYSCFG_DL_USB_UART_0_init(void);
 void SYSCFG_DL_UART_1_init(void);

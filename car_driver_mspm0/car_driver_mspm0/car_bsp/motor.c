@@ -65,12 +65,13 @@ void set_motor(int motor1,int motor2,int motor3,int motor4)
         motor4_dir ? (motor_load - motor4) : (1000 + motor4),
         GPIO_PWM_MOTOR_3_4_C1_IDX);
 }
+// motor3_dir ? (motor_load - motor3) : (1000 + motor3),
+// motor4_dir ? (motor_load - motor4) : (1000 + motor4),
 
 
 
-
-uint32_t M4_count=0;
-uint32_t M3_count=0;
+int32_t M4_count=0;
+int32_t M3_count=0;
 void TIMER_M4_INST_IRQHandler(void) 
 {
   switch (DL_TimerA_getPendingInterrupt(TIMER_M4_INST)) 

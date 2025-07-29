@@ -12,8 +12,8 @@ void PID_Init(PID_Controller *pid, float Kp, float Ki, float Kd, float Ts,float 
     pid->integral = 0.0f;
     pid->prev_error = 0.0f;
     pid->max_output = max;
-    pid->max_integral = pid->max_output * 0.5f; // �����޷�Ϊ������50%
-	  pid->prev_d=0.0f;
+    pid->max_integral = pid->max_output; // �����޷�Ϊ������50%
+	pid->prev_d=0.0f;
 }
     
 /* PID���㣨�������ͺ��˲���-----------------------------------------*/
@@ -44,6 +44,8 @@ float PID_Compute(PID_Controller *pid, float setpoint, float measurement) {
     if(output > pid->max_output) output = pid->max_output;
 
     
-    
+    if (output==0) {
+        output=1;
+    }
     return output;
 }

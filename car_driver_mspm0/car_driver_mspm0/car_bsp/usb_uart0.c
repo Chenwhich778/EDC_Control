@@ -1,6 +1,7 @@
 #include "car_bsp.h"
 
-
+extern PID_Controller pid_left;
+extern PID_Controller pid_right;
 int x = 359;
 int y = 225;
 typedef struct {
@@ -87,9 +88,21 @@ void UART0_ProcessFrame(void) {
     }
     frame[j] = '\0';
     
+    // // 解析有效帧
+    // if (frame[0] == '!') {
+    //     if (sscanf(&frame[1], "%d,%d", &x, &y) != 2) {
+    //         x = 359;  // 解析失败时重置默认值
+    //         y = 225;
+    //     }
+    //     if(x==0)
+    //     {
+    //         x = 359;  // 解析失败时重置默认值
+    //         y = 225;
+    //     }
+    // }
     // 解析有效帧
     if (frame[0] == '!') {
-        if (sscanf(&frame[1], "%d,%d", &x, &y) != 2) {
+        if (sscanf(&frame[1], "%f,%f,%f", &pid_left.Kp, &pid_left.Ki,&pid_left.Kd) != 2) {
             x = 359;  // 解析失败时重置默认值
             y = 225;
         }

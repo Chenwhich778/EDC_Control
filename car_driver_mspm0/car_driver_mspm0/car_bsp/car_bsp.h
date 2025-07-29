@@ -17,6 +17,7 @@
 #include "sensor.h"
 #include "key.h"
 #include "stdlib.h"
+#include "PID.h"
 
 #define rKEY1 DL_GPIO_readPins(KEY1_PORT, KEY1_PB5_PIN)
 /*********************************************usb_uart0*********************************************************/

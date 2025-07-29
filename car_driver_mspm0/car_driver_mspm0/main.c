@@ -68,7 +68,7 @@ char sM3_C[4];
 float ypr[3]; // 上传yaw pitch roll的值
 float adjust=0.0;
 /* 记录上一时刻和当前时刻编码器数值 */
-// uint32_t a1,a2,b1,b2;
+int a1,a2,b1,b2;
 
 /* 记录感为灰度I2C返回数值 */
 unsigned char Digtal;
@@ -81,10 +81,13 @@ float yaw_f=0;
 float pre_yaw=0.0;
 float mibu=0.0;
 char input='0';
-float speed3=0.0;
-float speed4=0.0;
+float speed3_filter=0.0;
+float speed4_filter=0.0;
 /* 设定小车启动默认电机数值 */
 uint16_t speed[4]={0,0,0,0};
+/*小车pid*/
+PID_Controller pid_left;
+PID_Controller pid_right;
 
 /* 将逻辑电平转化为数据，灰度中心离巡线越远，数值变化越大，变化范围-8~+8，有缺陷，但寻单个曲线足够 */
 void update_speed_sum(uint8_t data, uint32_t* speed_sum) 
@@ -111,7 +114,8 @@ int main(void)
     int turn_flag=0;
     int turn_count=0;
     SYSCFG_DL_init();
-
+    PID_Init(&pid_left, 100, 8, 0, 0.01, 1000);
+    PID_Init(&pid_right, 5, 0.1, 0.01, 0.01, 1000);
     /* 初始化调试串口 */
     usb_uart0_IRQ_init();
     delay_ms(100); // 等待部署
@@ -169,9 +173,10 @@ int main(void)
     {
         Read_Grayscale(sensor_values);
         UART0_ProcessFrame();
+        
         yaw_f-=0.01478;
-        // a1=get_motor_enc_count(4);
-        // b1=get_motor_enc_count(3);
+        a1=get_motor_enc_count(3);
+        b1=get_motor_enc_count(4);
 		IMU_getYawPitchRoll(ypr);
         ypr[0]-=yaw_f;
         float tmp=ypr[0]-pre_yaw;
@@ -201,19 +206,26 @@ int main(void)
 		sprintf(spitch, "%d  %d", turn_flag,turn_count);
 		sprintf(sroll, "%d", x);
         sprintf(srol, "%d", y);
-        // float speed3=(a1-a2)*10;
-        // float speed4=(b1-b2)*10;
-        sprintf(sM3_C, "%.2f", speed3);
-        sprintf(sM4_C, "%.2f", speed4);
-        OLED_ShowString(96,0,sM3_C);
-		OLED_ShowString(40,0,sM4_C);
+        
+        float speed4=(b1-b2)*5*0.5+speed4_filter*0.5;
+        float speed3=(a1-a2)*5*0.5+speed3_filter*0.5;
+        speed4_filter=(b1-b2)*5;
+        speed3_filter=(a1-a2)*5;
+        
+        sprintf(sM3_C, "%.1f", speed3);
+        sprintf(sM4_C, "%.1f", speed4);
+        OLED_ShowString(40,0,sM3_C);
+		OLED_ShowString(96,0,sM4_C);
 		OLED_ShowString(54,2,syaw);
 		OLED_ShowString(54,4,spitch);
 		OLED_ShowString(24,6,sroll);
         OLED_ShowString(96,6,srol);
         SPI0_reload();
-        // a2=a1;
-        // b2=b1;
+        a2=a1;
+        b2=b1;
+
+
+printf("%.2f,%.2f\n",speed3,speed4);
 
         /* 根据灰度数据行驶寻曲线 */
 		//  Digtal=IIC_Get_Digtal();
@@ -296,8 +308,10 @@ int main(void)
         //     turn_count++;
         //     if(turn_count>40)
         //     turn_flag=0;
-        // } 
-        set_motor(0, 0, 200, 200);
+        // }
+        float output_left=PID_Compute(&pid_left, 100, speed3);
+        float output_right=PID_Compute(&pid_right, 50, speed4);
+        set_motor(1, 1, left_speed, 1);
         }
         else
          stop_all_motors();

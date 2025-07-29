@@ -62,7 +62,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_TIMER_M4_init();
     SYSCFG_DL_TIMER_M3_init();
     SYSCFG_DL_TIMER_A0_100us_init();
-    SYSCFG_DL_TIMER_G12_1ms_init();
     SYSCFG_DL_I2C_0_init();
     SYSCFG_DL_USB_UART_0_init();
     SYSCFG_DL_UART_1_init();
@@ -120,7 +119,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_TimerA_reset(TIMER_M4_INST);
     DL_TimerG_reset(TIMER_M3_INST);
     DL_TimerA_reset(TIMER_A0_100us_INST);
-    DL_TimerG_reset(TIMER_G12_1ms_INST);
     DL_I2C_reset(I2C_0_INST);
     DL_UART_Main_reset(USB_UART_0_INST);
     DL_UART_Main_reset(UART_1_INST);
@@ -137,7 +135,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_TimerA_enablePower(TIMER_M4_INST);
     DL_TimerG_enablePower(TIMER_M3_INST);
     DL_TimerA_enablePower(TIMER_A0_100us_INST);
-    DL_TimerG_enablePower(TIMER_G12_1ms_INST);
     DL_I2C_enablePower(I2C_0_INST);
     DL_UART_Main_enablePower(USB_UART_0_INST);
     DL_UART_Main_enablePower(UART_1_INST);
@@ -314,14 +311,17 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		DL_GPIO_PIN_14_EDGE_FALL |
 		DL_GPIO_PIN_15_EDGE_FALL);
     DL_GPIO_setUpperPinsPolarity(GPIOB, DL_GPIO_PIN_23_EDGE_FALL |
-		DL_GPIO_PIN_19_EDGE_FALL);
+		DL_GPIO_PIN_20_EDGE_RISE_FALL |
+		DL_GPIO_PIN_19_EDGE_RISE_FALL);
     DL_GPIO_clearInterruptStatus(GPIOB, KEY1_PB5_PIN |
 		MOTOR1_ENCA1_PIN |
 		MOTOR2_ENCA2_PIN |
+		MOTOR3_ENCB3_PIN |
 		MOTOR4_ENCA4_PIN);
     DL_GPIO_enableInterrupt(GPIOB, KEY1_PB5_PIN |
 		MOTOR1_ENCA1_PIN |
 		MOTOR2_ENCA2_PIN |
+		MOTOR3_ENCB3_PIN |
 		MOTOR4_ENCA4_PIN);
 
 }
@@ -604,43 +604,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_TIMER_A0_100us_init(void) {
         (DL_TimerA_TimerConfig *) &gTIMER_A0_100usTimerConfig);
     DL_TimerA_enableInterrupt(TIMER_A0_100us_INST , DL_TIMERA_INTERRUPT_ZERO_EVENT);
     DL_TimerA_enableClock(TIMER_A0_100us_INST);
-
-
-
-
-
-}
-
-/*
- * Timer clock configuration to be sourced by BUSCLK /  (32000000 Hz)
- * timerClkFreq = (timerClkSrc / (timerClkDivRatio * (timerClkPrescale + 1)))
- *   32000000 Hz = 32000000 Hz / (1 * (0 + 1))
- */
-static const DL_TimerG_ClockConfig gTIMER_G12_1msClockConfig = {
-    .clockSel    = DL_TIMER_CLOCK_BUSCLK,
-    .divideRatio = DL_TIMER_CLOCK_DIVIDE_1,
-    .prescale    = 0U,
-};
-
-/*
- * Timer load value (where the counter starts from) is calculated as (timerPeriod * timerClockFreq) - 1
- * TIMER_G12_1ms_INST_LOAD_VALUE = (100 us * 32000000 Hz) - 1
- */
-static const DL_TimerG_TimerConfig gTIMER_G12_1msTimerConfig = {
-    .period     = TIMER_G12_1ms_INST_LOAD_VALUE,
-    .timerMode  = DL_TIMER_TIMER_MODE_PERIODIC,
-    .startTimer = DL_TIMER_START,
-};
-
-SYSCONFIG_WEAK void SYSCFG_DL_TIMER_G12_1ms_init(void) {
-
-    DL_TimerG_setClockConfig(TIMER_G12_1ms_INST,
-        (DL_TimerG_ClockConfig *) &gTIMER_G12_1msClockConfig);
-
-    DL_TimerG_initTimerMode(TIMER_G12_1ms_INST,
-        (DL_TimerG_TimerConfig *) &gTIMER_G12_1msTimerConfig);
-    DL_TimerG_enableInterrupt(TIMER_G12_1ms_INST , DL_TIMERG_INTERRUPT_ZERO_EVENT);
-    DL_TimerG_enableClock(TIMER_G12_1ms_INST);
 
 
 
