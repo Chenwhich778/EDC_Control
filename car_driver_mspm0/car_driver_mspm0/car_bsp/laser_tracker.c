@@ -30,7 +30,7 @@ int buzzer_mark = 0;       // 蜂鸣器触发标记
 int R_C = 0;               // 保留变量
 int target_position = 0;    // 目标位置
 
-int servo_x = 3800;        // 水平舵机初始值
+int servo_x = 700;        // 水平舵机初始值
 int servo_y = 2250;        // 垂直舵机初始值
 int last_obj_x = CAMERA_CENTER_X;  // 最后物体X坐标（初始为图像中心）
 int last_obj_y = CAMERA_CENTER_Y;  // 最后物体Y坐标
@@ -60,7 +60,7 @@ typedef struct {
     float fine;  // 微调量
 } FineServo;
 
-FineServo fine_servo_x = {3800, 0};  // 水平精细控制
+FineServo fine_servo_x = {700, 0};  // 水平精细控制
 FineServo fine_servo_y = {2250, 0};  // 垂直精细控制
 
 // 数值限幅函数
@@ -278,7 +278,7 @@ void control_camera(int obj_x, int obj_y) {
         if (fabs(fine_servo_x.fine) >= 1.0f) {
             int actual_step = (int)truncf(fine_servo_x.fine);
 
-            fine_servo_x.base = constrain(fine_servo_x.base + actual_step, 100,4000);
+            fine_servo_x.base = constrain(fine_servo_x.base + actual_step, 100,12000);
             fine_servo_x.fine -= actual_step;
             consecutive_steps++;
             servo_x = fine_servo_x.base;
@@ -294,10 +294,10 @@ void control_camera(int obj_x, int obj_y) {
             consecutive_steps++;
             servo_y = fine_servo_y.base;
         }
-    }
+    }s
     
     // 执行舵机控制
-    static int last_servo_x = 3800;
+    static int last_servo_x = 700;
     static int last_servo_y = 2250;
     
     if (servo_x != last_servo_x || servo_y != last_servo_y) {

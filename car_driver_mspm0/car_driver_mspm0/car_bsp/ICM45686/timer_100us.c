@@ -26,6 +26,8 @@ void TIMER_A0_100us_INST_IRQHandler(void)
             // 使用PID控制电机
             float output_left = PID_Compute(&pid_left, left_target, speed3);
             float output_right = PID_Compute(&pid_right, right_target, speed4);
+            // float output_left = PID_Compute(&pid_left, 100, speed3);
+            // float output_right = PID_Compute(&pid_right, 100, speed4);
             
             // 设置电机输出
             set_motor(1, 1, output_left, output_right);

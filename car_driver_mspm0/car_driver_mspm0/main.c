@@ -54,13 +54,20 @@
 
 // 循迹参数
 #define BASE_SPEED 100            // 基础速度
-#define KP 10.0                   // 比例控制系数
-#define TURN_THRESHOLD 3          // 检测到多少传感器触发转弯
+#define KP 9.0                   // 比例控制系数
+#define TURN_THRESHOLD 4          // 检测到多少传感器触发转弯
 #define TURN_SLOW_DOWN_FACTOR 0.6 // 转弯时速度降低系数
 #define MAX_TURN_COUNT 40         // 最大转弯计数
 
-// 传感器权重（右负左正）
-const float weights[8] = {-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5};
+       // 在全局变量区新增
+#define TURN_ANGLE 80.0f       // 目标转弯角度(略小于90度用于提前量)
+#define MIN_TURN_STRENGTH 0.5f // 最小转弯强度
+#define MAX_TURN_STRENGTH 0.8f // 最大转弯强度
+float turn_start_yaw = 0.0f;   // 记录转弯开始时的yaw角
+uint8_t trun_count = 0;
+uint8_t TURN_COUNT = 0;
+// 传感器权重（右负左负）
+const float weights[8] = {2, 1.5, 1, 0.5, -0.5,- 1, -1.5,- 2};
 
 //ganv灰度传感器
 unsigned short Anolog[8]={0};
@@ -161,6 +168,7 @@ float speed4=0;
 float speed3=0;
 float left_target=0;
 float right_target=0;
+uint8_t circle=0;
 
 
 /* 将逻辑电平转化为数据，灰度中心离巡线越远，数值变化越大，变化范围-8~+8，有缺陷，但寻单个曲线足够 */
@@ -289,6 +297,8 @@ int main(void)
         if(input == '*' || input == '#') {
             handle_key_press(input);
         }
+        if(input>='1'&&input<='5' )
+        circle=input-'0';
 // 传感器常规任务
         No_Mcu_Ganv_Sensor_Task_Without_tick(&sensor);
         
@@ -314,8 +324,8 @@ int main(void)
         speed4_filter=(b1-b2)*5;
         speed3_filter=(a1-a2)*5;
         
-        sprintf(sM3_C, "%d", (Digtal>>0)&0x01);
-        sprintf(sM4_C, "%d",(Digtal>>7)&0x01);
+        sprintf(sM3_C, "%d", (Digtal>>3)&0x01);
+        sprintf(sM4_C, "%d",(Digtal>>4)&0x01);
         OLED_ShowString(40,0,sM3_C);
 		OLED_ShowString(96,0,sM4_C);
 		OLED_ShowString(54,2,syaw);
@@ -362,7 +372,7 @@ printf("%.2f,%.2f\n",speed3,speed4);
         // 1. 计算加权误差
         for (int i = 0; i < 8; i++) {
             // 检查第i位是否检测到黑线（0表示检测到）
-            if (!(Digtal>>i)&0x01) {
+            if (!((Digtal>>i)&0x01)) {
                 error += weights[i];
                 sensor_count++;
                 
@@ -383,15 +393,10 @@ printf("%.2f,%.2f\n",speed3,speed4);
         // 3. 检测转弯情况
         int is_turn = 0;
         if (sensor_count >= TURN_THRESHOLD) {
-            if (left_sensors > 2 && right_sensors > 2) {
-                // 十字路口
-                is_turn = 3;
-            } else if (left_sensors >= TURN_THRESHOLD) {
+            
+            if (left_sensors >= TURN_THRESHOLD) {
                 // 左转
                 is_turn = 1;
-            } else if (right_sensors >= TURN_THRESHOLD) {
-                // 右转
-                is_turn = 2;
             }
         }
         
@@ -402,52 +407,49 @@ printf("%.2f,%.2f\n",speed3,speed4);
         // 5. 计算电机速度 (差速转向)
         float current_base_speed = BASE_SPEED;
         
-        // 转弯时减速
-        if (is_turn > 0) {
-            current_base_speed *= TURN_SLOW_DOWN_FACTOR;
-            
-            // 特殊处理十字路口
-            if (is_turn == 3) {
-                // 直行通过十字路口
-                steer = 0;
-            }
-        }
-        
-        // 转弯计数处理（如果需要特殊转弯动作）
-if (is_turn > 0 && turn_flag == 0) {
+ 
+// 修改后的转弯处理代码（替换原来的转弯处理部分）
+if (is_turn ==1 && turn_flag == 0) {
+    turn_count=7;
     turn_flag = 1;
-    turn_count = 0;
+    turn_start_yaw = ypr[0]; // 记录开始转弯时的初始角度
+    current_base_speed *= TURN_SLOW_DOWN_FACTOR;
 }
+if(turn_count!=0)
+turn_count--;
 
-if (turn_flag == 1) {
-    turn_count++;
+if (turn_flag == 1&&turn_count==0) {
+    // 计算当前转向角度（处理-180~180范围）
+    float angle_diff = ypr[0] - turn_start_yaw;
     
-        left_target = current_base_speed - steer;
-        right_target = current_base_speed + steer;
-    // 转弯动作处理（通过修改目标速度实现）
-    if (turn_count < MAX_TURN_COUNT) {
-        // 计算转弯强度因子（0.0-1.0），使转弯动作更平滑
-        float turn_factor = (float)turn_count / MAX_TURN_COUNT;
-        float turn_strength = 0.7 * (1.0 - turn_factor * 0.5); // 转弯强度逐渐减弱
+    
+    // 取绝对值得到实际转向角度
+    float current_turn_angle = -angle_diff;
+    
+    if (current_turn_angle < TURN_ANGLE) {
+        // 动态调整转弯强度（基于剩余角度比例）
+        float remaining_ratio = (TURN_ANGLE - current_turn_angle) / TURN_ANGLE;
+        float turn_strength = MIN_TURN_STRENGTH + 
+                             (MAX_TURN_STRENGTH - MIN_TURN_STRENGTH) * remaining_ratio;
         
-        if (is_turn == 1) { // 左转
-            left_target = -current_base_speed * turn_strength;
-            right_target = current_base_speed * turn_strength;
-        } 
-        else if (is_turn == 2) { // 右转
-            left_target = current_base_speed * turn_strength;
-            right_target = -current_base_speed * turn_strength;
-        }
-    } 
-    else {
+        // 执行左转：右轮前进，左轮后退
+        left_target = -current_base_speed * turn_strength;
+        right_target = current_base_speed * turn_strength;
+    } else {
+        // 转弯完成
+        TURN_COUNT++;
         turn_flag = 0;
-        turn_count = 0;
-        // 转弯结束后恢复正常的循迹控制
         left_target = current_base_speed - steer;
         right_target = current_base_speed + steer;
     }
+} else {
+    // 正常循迹模式
+    left_target = current_base_speed - steer;
+    right_target = current_base_speed + steer;
 }
-        
+
+if(TURN_COUNT>=circle*4)
+EN = -1;
         // 6. 速度限制
         left_target = (left_target < -500) ? -500 : (left_target > 500 ? 500 : left_target);
         right_target = (right_target < -500) ? -500 : (right_target > 500 ? 500 : right_target);
