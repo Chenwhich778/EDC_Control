@@ -6,7 +6,6 @@ SHELL = cmd.exe
 
 # Add inputs and outputs from these tool invocations to the build variables 
 SYSCFG_SRCS += \
-../empty_mspm0g3507\ copy.syscfg \
 ../empty_mspm0g3507.syscfg 
 
 C_SRCS += \
@@ -25,13 +24,9 @@ GEN_FILES += \
 ./syscfg/boot_config.c 
 
 GEN_MISC_DIRS += \
-./syscfg \
 ./syscfg 
 
 C_DEPS += \
-./syscfg/ti_msp_dl_config.d \
-./syscfg/boot_config.d \
-./startup_mspm0g350x_ticlang.d \
 ./syscfg/ti_msp_dl_config.d \
 ./syscfg/boot_config.d \
 ./startup_mspm0g350x_ticlang.d \
@@ -50,14 +45,9 @@ GEN_MISC_FILES += \
 ./syscfg/device.cmd.genlibs \
 ./syscfg/ti_msp_dl_config.h \
 ./syscfg/Event.dot \
-./syscfg/boot_config.h \
-./syscfg/device.cmd.genlibs \
-./syscfg/ti_msp_dl_config.h \
-./syscfg/Event.dot \
 ./syscfg/boot_config.h 
 
 GEN_MISC_DIRS__QUOTED += \
-"syscfg" \
 "syscfg" 
 
 OBJS__QUOTED += \
@@ -70,16 +60,9 @@ GEN_MISC_FILES__QUOTED += \
 "syscfg\device.cmd.genlibs" \
 "syscfg\ti_msp_dl_config.h" \
 "syscfg\Event.dot" \
-"syscfg\boot_config.h" \
-"syscfg\device.cmd.genlibs" \
-"syscfg\ti_msp_dl_config.h" \
-"syscfg\Event.dot" \
 "syscfg\boot_config.h" 
 
 C_DEPS__QUOTED += \
-"syscfg\ti_msp_dl_config.d" \
-"syscfg\boot_config.d" \
-"startup_mspm0g350x_ticlang.d" \
 "syscfg\ti_msp_dl_config.d" \
 "syscfg\boot_config.d" \
 "startup_mspm0g350x_ticlang.d" \
@@ -92,7 +75,6 @@ GEN_FILES__QUOTED += \
 "syscfg\boot_config.c" 
 
 SYSCFG_SRCS__QUOTED += \
-"../empty_mspm0g3507 copy.syscfg" \
 "../empty_mspm0g3507.syscfg" 
 
 C_SRCS__QUOTED += \

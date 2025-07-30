@@ -14,7 +14,9 @@ ORDERED_OBJS += \
 "./syscfg/boot_config.o" \
 "./startup_mspm0g350x_ticlang.o" \
 "./main.o" \
+"./car_bsp/ADC.o" \
 "./car_bsp/Buzzer.o" \
+"./car_bsp/No_Mcu_Ganv_Grayscale_Sensor.o" \
 "./car_bsp/PID.o" \
 "./car_bsp/draw.o" \
 "./car_bsp/key.o" \
@@ -177,8 +179,8 @@ car_driver_mspm0.out: $(OBJS) $(GEN_CMDS)
 # Other Targets
 clean:
 	-$(RM) $(GEN_MISC_FILES__QUOTED)$(GEN_FILES__QUOTED)$(EXE_OUTPUTS__QUOTED)
-	-$(RM) "syscfg\ti_msp_dl_config.o" "syscfg\boot_config.o" "startup_mspm0g350x_ticlang.o" "main.o" "car_bsp\Buzzer.o" "car_bsp\PID.o" "car_bsp\draw.o" "car_bsp\key.o" "car_bsp\key1.o" "car_bsp\laser_tracker.o" "car_bsp\motor.o" "car_bsp\rgb.o" "car_bsp\sensor.o" "car_bsp\servo_protocol.o" "car_bsp\usart.o" "car_bsp\usb_uart0.o" "car_bsp\vcc_adc.o" "car_bsp\Grayscale_Sensor\IIC.o" "car_bsp\Grayscale_Sensor\hardware_iic.o" "car_bsp\ICM45686\ICM45686\inv_imu_driver.o" "car_bsp\ICM45686\ICM45686\inv_imu_transport.o" "car_bsp\ICM45686\IMU\IMU.o" "car_bsp\ICM45686\basic_read_reg.o" "car_bsp\ICM45686\timer_100us.o" "car_bsp\OLED\oled.o" 
-	-$(RM) "syscfg\ti_msp_dl_config.d" "syscfg\boot_config.d" "startup_mspm0g350x_ticlang.d" "syscfg\ti_msp_dl_config.d" "syscfg\boot_config.d" "startup_mspm0g350x_ticlang.d" "main.d" "car_bsp\Buzzer.d" "car_bsp\PID.d" "car_bsp\draw.d" "car_bsp\key.d" "car_bsp\key1.d" "car_bsp\laser_tracker.d" "car_bsp\motor.d" "car_bsp\rgb.d" "car_bsp\sensor.d" "car_bsp\servo_protocol.d" "car_bsp\usart.d" "car_bsp\usb_uart0.d" "car_bsp\vcc_adc.d" "car_bsp\Grayscale_Sensor\IIC.d" "car_bsp\Grayscale_Sensor\hardware_iic.d" "car_bsp\ICM45686\ICM45686\inv_imu_driver.d" "car_bsp\ICM45686\ICM45686\inv_imu_transport.d" "car_bsp\ICM45686\IMU\IMU.d" "car_bsp\ICM45686\basic_read_reg.d" "car_bsp\ICM45686\timer_100us.d" "car_bsp\OLED\oled.d" 
+	-$(RM) "syscfg\ti_msp_dl_config.o" "syscfg\boot_config.o" "startup_mspm0g350x_ticlang.o" "main.o" "car_bsp\ADC.o" "car_bsp\Buzzer.o" "car_bsp\No_Mcu_Ganv_Grayscale_Sensor.o" "car_bsp\PID.o" "car_bsp\draw.o" "car_bsp\key.o" "car_bsp\key1.o" "car_bsp\laser_tracker.o" "car_bsp\motor.o" "car_bsp\rgb.o" "car_bsp\sensor.o" "car_bsp\servo_protocol.o" "car_bsp\usart.o" "car_bsp\usb_uart0.o" "car_bsp\vcc_adc.o" "car_bsp\Grayscale_Sensor\IIC.o" "car_bsp\Grayscale_Sensor\hardware_iic.o" "car_bsp\ICM45686\ICM45686\inv_imu_driver.o" "car_bsp\ICM45686\ICM45686\inv_imu_transport.o" "car_bsp\ICM45686\IMU\IMU.o" "car_bsp\ICM45686\basic_read_reg.o" "car_bsp\ICM45686\timer_100us.o" "car_bsp\OLED\oled.o" 
+	-$(RM) "syscfg\ti_msp_dl_config.d" "syscfg\boot_config.d" "startup_mspm0g350x_ticlang.d" "main.d" "car_bsp\ADC.d" "car_bsp\Buzzer.d" "car_bsp\No_Mcu_Ganv_Grayscale_Sensor.d" "car_bsp\PID.d" "car_bsp\draw.d" "car_bsp\key.d" "car_bsp\key1.d" "car_bsp\laser_tracker.d" "car_bsp\motor.d" "car_bsp\rgb.d" "car_bsp\sensor.d" "car_bsp\servo_protocol.d" "car_bsp\usart.d" "car_bsp\usb_uart0.d" "car_bsp\vcc_adc.d" "car_bsp\Grayscale_Sensor\IIC.d" "car_bsp\Grayscale_Sensor\hardware_iic.d" "car_bsp\ICM45686\ICM45686\inv_imu_driver.d" "car_bsp\ICM45686\ICM45686\inv_imu_transport.d" "car_bsp\ICM45686\IMU\IMU.d" "car_bsp\ICM45686\basic_read_reg.d" "car_bsp\ICM45686\timer_100us.d" "car_bsp\OLED\oled.d" 
 	-$(RMDIR) $(GEN_MISC_DIRS__QUOTED)
 	-@echo 'Finished clean'
 	-@echo ' '

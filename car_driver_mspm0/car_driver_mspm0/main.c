@@ -39,8 +39,8 @@
 #include "car_bsp/car_bsp.h"
 #include "../car_bsp/OLED/oledfont_bmp.h"
 #include "math.h"
+#include "No_Mcu_Ganv_Grayscale_Sensor_Config.h"
 
-// 定义位索引（0=最低位/最右侧，7=最高位/最左侧）
 #define BIT_0 0
 #define BIT_1 1
 #define BIT_2 2
@@ -50,7 +50,75 @@
 #define BIT_6 6
 #define BIT_7 7
 
+#define CALIBRATION_DELAY_MS 2000  // 校准等待时间(2秒)
 
+// 循迹参数
+#define BASE_SPEED 100            // 基础速度
+#define KP 10.0                   // 比例控制系数
+#define TURN_THRESHOLD 3          // 检测到多少传感器触发转弯
+#define TURN_SLOW_DOWN_FACTOR 0.6 // 转弯时速度降低系数
+#define MAX_TURN_COUNT 40         // 最大转弯计数
+
+// 传感器权重（右负左正）
+const float weights[8] = {-3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5};
+
+//ganv灰度传感器
+unsigned short Anolog[8]={0};
+unsigned short white[8]={1800,1800,1800,1800,1800,1800,1800,1800};
+unsigned short black[8]={300,300,300,300,300,300,300,300};
+unsigned short Normal[8];
+unsigned char rx_buff[256]={0};
+No_MCU_Sensor sensor;
+
+// 校准状态枚举
+typedef enum {
+    CALIB_IDLE,
+    CALIB_WHITE_WAITING,
+    CALIB_BLACK_WAITING,
+    CALIB_COMPLETED
+} CalibrationState;
+
+CalibrationState calib_state = CALIB_IDLE;
+uint32_t calib_start_time = 0;
+
+// 按键处理函数
+void handle_key_press(char key) {
+    uint32_t current_time = get_current_time_ms();
+    
+    switch(key) {
+        case '*':  // 开始白校准
+            calib_state = CALIB_WHITE_WAITING;
+            calib_start_time = current_time;
+            printf( "Place sensor on WHITE surface and press #\r\n");
+            
+            break;
+            
+        case '#':  // 开始黑校准或完成校准
+            if(calib_state == CALIB_WHITE_WAITING) {
+                // 保存白值
+                Get_Anolog_Value(&sensor, white);
+                calib_state = CALIB_BLACK_WAITING;
+                calib_start_time = current_time;
+                printf("Initial Anolog %d-%d-%d-%d-%d-%d-%d-%d\r\n",
+            Anolog[0],Anolog[1],Anolog[2],Anolog[3],
+            Anolog[4],Anolog[5],Anolog[6],Anolog[7]);
+                printf("Place sensor on BLACK surface and press #\r\n");
+            } 
+            else if(calib_state == CALIB_BLACK_WAITING) {
+                // 保存黑值
+                Get_Anolog_Value(&sensor, black);
+                calib_state = CALIB_COMPLETED;
+                printf("Initial Anolog %d-%d-%d-%d-%d-%d-%d-%d\r\n",
+            Anolog[0],Anolog[1],Anolog[2],Anolog[3],
+            Anolog[4],Anolog[5],Anolog[6],Anolog[7]);
+                printf( "Calibration completed!\r\n");
+                
+                // 使用新的校准值重新初始化传感器
+                No_MCU_Ganv_Sensor_Init(&sensor, white, black);
+            }
+            break;
+    }
+}
 
 
 
@@ -83,11 +151,17 @@ float mibu=0.0;
 char input='0';
 float speed3_filter=0.0;
 float speed4_filter=0.0;
+uint16_t xx=0;
 /* 设定小车启动默认电机数值 */
 uint16_t speed[4]={0,0,0,0};
 /*小车pid*/
 PID_Controller pid_left;
 PID_Controller pid_right;
+float speed4=0;
+float speed3=0;
+float left_target=0;
+float right_target=0;
+
 
 /* 将逻辑电平转化为数据，灰度中心离巡线越远，数值变化越大，变化范围-8~+8，有缺陷，但寻单个曲线足够 */
 void update_speed_sum(uint8_t data, uint32_t* speed_sum) 
@@ -109,16 +183,19 @@ void update_speed_sum(uint8_t data, uint32_t* speed_sum)
 
 int main(void)
 {
+   //turn off light
+   set_rgb_duty(0,0,0);
+
     /* 初始化系统，由sysconfig配置 */
     int turn=1;
     int turn_flag=0;
     int turn_count=0;
-    int base_speed = 50;  
+    // int base_speed = 50;  
     SYSCFG_DL_init();
     PID_Init(&pid_left, 3, 2.3, 0.008, 0.01, 1000);
-    PID_Init(&pid_right, 3, 2.3, 0.008, 0.01, 1000);
-    pid_left.integral=base_speed*2;
-    pid_right.integral=base_speed*2;
+    PID_Init(&pid_right, 2.9, 2.2, 0.008, 0.01, 1000);
+    pid_left.integral=BASE_SPEED*1.6;
+    pid_right.integral=BASE_SPEED*1.8;
     /* 初始化调试串口 */
     usb_uart0_IRQ_init();
     delay_ms(100); // 等待部署
@@ -131,6 +208,25 @@ int main(void)
 
     /* IMU初始化，静止不动采集数据1s左右 */
 	IMU_init();
+
+//ganv灰度传感器初始化
+       
+		unsigned char Digtal;
+//不带黑白值
+        No_MCU_Ganv_Sensor_Init_Frist(&sensor);
+		No_Mcu_Ganv_Sensor_Task_Without_tick(&sensor);
+// 打印初始ADC值
+    Get_Anolog_Value(&sensor, Anolog);
+    printf("Initial Anolog %d-%d-%d-%d-%d-%d-%d-%d\r\n",
+            Anolog[0],Anolog[1],Anolog[2],Anolog[3],
+            Anolog[4],Anolog[5],Anolog[6],Anolog[7]);
+    delay_ms(100);
+    memset(rx_buff, 0, 256);
+    
+    // 初始使用默认黑白值初始化传感器
+    No_MCU_Ganv_Sensor_Init(&sensor, white, black);
+
+
     NVIC_EnableIRQ(TIMER_A0_100us_INST_INT_IRQN);
     // NVIC_EnableIRQ(TIMER_G12_1ms_INST_INT_IRQN);
     for (int i=0; i <100; i++) {
@@ -160,24 +256,16 @@ int main(void)
     motor_init();
 
     /* 设置电机速度和方向 -1000 ~ -1 和 1~1000 */
-    // set_motor(speed[0],speed[1],speed[2],speed[3]);
-
-    int8_t sensor_values[7];
+    // set_motor(speed[0],speed[1],speed[2],speed[3]
     
-      // 基础速度
-    float kp = 30.0;         // 比例控制系数
-    int weights[7] = {-1.5, -1, -0.5, 0, 0.5, 1, 1.5}; // 传感器权重（右负左正）
-    float error = 0;
-    float last_error = 0;
-    float steer = 0;
 
 
     while (1) 
     {
-        Read_Grayscale(sensor_values);
+        // Read_Grayscale(sensor_values);
         UART0_ProcessFrame();
         
-        yaw_f-=0.01478;
+        // yaw_f-=0.01478;
         a1=get_motor_enc_count(3);
         b1=get_motor_enc_count(4);
 		IMU_getYawPitchRoll(ypr);
@@ -193,10 +281,21 @@ int main(void)
         // ypr[0]-=360;
         // while(ypr[0]<-180)
         // ypr[0]+=360;
-        // if (EN!=1) {
-        //     uint8_t keyboard=getKeyValue();
-        //     input=get_keychar(keyboard);
-        // }
+        if (EN!=1) {
+            uint8_t keyboard=getKeyValue();
+            input=get_keychar(keyboard);
+        }
+
+        if(input == '*' || input == '#') {
+            handle_key_press(input);
+        }
+// 传感器常规任务
+        No_Mcu_Ganv_Sensor_Task_Without_tick(&sensor);
+        
+        // 获取并显示传感器数据
+        Digtal = Get_Digtal_For_User(&sensor);
+
+        
         OLED_Clear();
 		OLED_DrawBMP(0, 0, 16, 2  , qishi);
 		OLED_ShowString(16,0,"M3:");
@@ -206,17 +305,17 @@ int main(void)
 		OLED_ShowString(0,6,"x :");
         OLED_ShowString(64,6,"y :");
 		sprintf(syaw, "%.2f", ypr[0]);
-		sprintf(spitch, "%d  %d", turn_flag,turn_count);
+		sprintf(spitch, "%d  %c", EN,input);
 		sprintf(sroll, "%d", x);
         sprintf(srol, "%d", y);
         
-        float speed4=(b1-b2)*5*0.5+speed4_filter*0.5;
-        float speed3=(a1-a2)*5*0.5+speed3_filter*0.5;
+        speed4=(b1-b2)*5*0.5+speed4_filter*0.5;
+        speed3=(a1-a2)*5*0.5+speed3_filter*0.5;
         speed4_filter=(b1-b2)*5;
         speed3_filter=(a1-a2)*5;
         
-        sprintf(sM3_C, "%.1f", speed3);
-        sprintf(sM4_C, "%.1f", speed4);
+        sprintf(sM3_C, "%d", (Digtal>>0)&0x01);
+        sprintf(sM4_C, "%d",(Digtal>>7)&0x01);
         OLED_ShowString(40,0,sM3_C);
 		OLED_ShowString(96,0,sM4_C);
 		OLED_ShowString(54,2,syaw);
@@ -252,74 +351,112 @@ printf("%.2f,%.2f\n",speed3,speed4);
         }
 
 
-// 灰度循迹算法 ======================================
-        int line_position = 0;
+
+/********************* 循迹算法 - 改进版本 *********************/
+        float error = 0.0;
+        float last_error = 0.0;
         int sensor_count = 0;
-        error = 0;
+        int left_sensors = 0;
+        int right_sensors = 0;
         
-        // 1. 计算黑线位置（加权平均）
-        for (int i = 0; i < 7; i++) {
-            if (sensor_values[i] == 0) { // 检测到黑线
+        // 1. 计算加权误差
+        for (int i = 0; i < 8; i++) {
+            // 检查第i位是否检测到黑线（0表示检测到）
+            if (!(Digtal>>i)&0x01) {
                 error += weights[i];
                 sensor_count++;
+                
+                // 统计左右传感器检测数量
+                if (i < 4) left_sensors++;
+                else right_sensors++;
             }
         }
         
-       if(sensor_count>=4&&turn==1)
-
-       {
-         turn_flag=1;
-         turn=0;
-         turn_count=-32;
-         
-       }
-
-
-        //2. 处理不同检测情况
+        // 2. 处理不同检测情况
         if (sensor_count > 0) {
             error /= sensor_count; // 计算平均位置误差
         } else {
-         //   未检测到黑线：使用上次误差或停止
+            // 未检测到黑线：根据上次误差方向缓慢旋转
             error = (last_error > 0) ? 3.0 : -3.0;
         }
         
-        // 3. 比例控制计算转向量
-        steer = kp * error;
+        // 3. 检测转弯情况
+        int is_turn = 0;
+        if (sensor_count >= TURN_THRESHOLD) {
+            if (left_sensors > 2 && right_sensors > 2) {
+                // 十字路口
+                is_turn = 3;
+            } else if (left_sensors >= TURN_THRESHOLD) {
+                // 左转
+                is_turn = 1;
+            } else if (right_sensors >= TURN_THRESHOLD) {
+                // 右转
+                is_turn = 2;
+            }
+        }
+        
+        // 4. 比例控制计算转向量
+        float steer = KP * error;
         last_error = error; // 保存本次误差
         
-        // 4. 计算电机速度 (差速转向)
-        int left_speed  = base_speed - steer;
-        int right_speed = base_speed + steer;
+        // 5. 计算电机速度 (差速转向)
+        float current_base_speed = BASE_SPEED;
         
-        // 5. 速度限制 (防止超限)
-        left_speed = (left_speed < -500) ? -500 : (left_speed > 500 ? 500 : left_speed);
-        right_speed = (right_speed < -500) ? -500 : (right_speed > 500 ? 500 : right_speed);
-        if(EN == 1){
-        // set_motor(100-ypr[0]*50,100+(ypr[0])*50,(200-ypr[0]*10)*0.5,(200+ypr[0]*10)*0.5);
-       //此处加入灰度循迹代码
-        // if (turn_count<0) {
-        //     turn_count++;
-        // }
-        // if(turn_flag==0){
-        // if(turn_count++>80)
-        //   set_motor(0, 0, left_speed, right_speed);
-        // else
-        //  stop_all_motors();
-        // }
-        // else if(turn_flag==1&&turn_count>=0){
-        //     set_motor(0, 0, 165, -165);
-        //     turn_count++;
-        //     if(turn_count>40)
-        //     turn_flag=0;
-        // }
-        float output_left=PID_Compute(&pid_left, base_speed, speed3);
-        float output_right=PID_Compute(&pid_right, base_speed, speed4);
-        set_motor(1, 1, output_left, output_right);
+        // 转弯时减速
+        if (is_turn > 0) {
+            current_base_speed *= TURN_SLOW_DOWN_FACTOR;
+            
+            // 特殊处理十字路口
+            if (is_turn == 3) {
+                // 直行通过十字路口
+                steer = 0;
+            }
         }
-        else
-         stop_all_motors();
+        
+        // 转弯计数处理（如果需要特殊转弯动作）
+if (is_turn > 0 && turn_flag == 0) {
+    turn_flag = 1;
+    turn_count = 0;
+}
+
+if (turn_flag == 1) {
+    turn_count++;
+    
+        left_target = current_base_speed - steer;
+        right_target = current_base_speed + steer;
+    // 转弯动作处理（通过修改目标速度实现）
+    if (turn_count < MAX_TURN_COUNT) {
+        // 计算转弯强度因子（0.0-1.0），使转弯动作更平滑
+        float turn_factor = (float)turn_count / MAX_TURN_COUNT;
+        float turn_strength = 0.7 * (1.0 - turn_factor * 0.5); // 转弯强度逐渐减弱
+        
+        if (is_turn == 1) { // 左转
+            left_target = -current_base_speed * turn_strength;
+            right_target = current_base_speed * turn_strength;
+        } 
+        else if (is_turn == 2) { // 右转
+            left_target = current_base_speed * turn_strength;
+            right_target = -current_base_speed * turn_strength;
+        }
+    } 
+    else {
+        turn_flag = 0;
+        turn_count = 0;
+        // 转弯结束后恢复正常的循迹控制
+        left_target = current_base_speed - steer;
+        right_target = current_base_speed + steer;
+    }
+}
+        
+        // 6. 速度限制
+        left_target = (left_target < -500) ? -500 : (left_target > 500 ? 500 : left_target);
+        right_target = (right_target < -500) ? -500 : (right_target > 500 ? 500 : right_target);
+        
+
+
+        
 
         /* 轮询基本延时 */
-          delay_ms(10);
+        //   delay_ms(10);
     }
 }

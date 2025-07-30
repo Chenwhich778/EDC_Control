@@ -102,7 +102,7 @@ void UART0_ProcessFrame(void) {
     // }
     // 解析有效帧
     if (frame[0] == '!') {
-        if (sscanf(&frame[1], "%f,%f,%f", &pid_left.Kp, &pid_left.Ki,&pid_left.Kd) != 2) {
+        if (sscanf(&frame[1], "%f,%f,%f", &pid_right.Kp, &pid_right.Ki,&pid_right.Kd) != 2) {
             x = 359;  // 解析失败时重置默认值
             y = 225;
         }

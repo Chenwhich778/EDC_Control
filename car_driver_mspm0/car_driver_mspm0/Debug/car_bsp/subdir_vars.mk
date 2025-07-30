@@ -6,7 +6,9 @@ SHELL = cmd.exe
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../car_bsp/ADC.c \
 ../car_bsp/Buzzer.c \
+../car_bsp/No_Mcu_Ganv_Grayscale_Sensor.c \
 ../car_bsp/PID.c \
 ../car_bsp/draw.c \
 ../car_bsp/key.c \
@@ -21,7 +23,9 @@ C_SRCS += \
 ../car_bsp/vcc_adc.c 
 
 C_DEPS += \
+./car_bsp/ADC.d \
 ./car_bsp/Buzzer.d \
+./car_bsp/No_Mcu_Ganv_Grayscale_Sensor.d \
 ./car_bsp/PID.d \
 ./car_bsp/draw.d \
 ./car_bsp/key.d \
@@ -36,7 +40,9 @@ C_DEPS += \
 ./car_bsp/vcc_adc.d 
 
 OBJS += \
+./car_bsp/ADC.o \
 ./car_bsp/Buzzer.o \
+./car_bsp/No_Mcu_Ganv_Grayscale_Sensor.o \
 ./car_bsp/PID.o \
 ./car_bsp/draw.o \
 ./car_bsp/key.o \
@@ -51,7 +57,9 @@ OBJS += \
 ./car_bsp/vcc_adc.o 
 
 OBJS__QUOTED += \
+"car_bsp\ADC.o" \
 "car_bsp\Buzzer.o" \
+"car_bsp\No_Mcu_Ganv_Grayscale_Sensor.o" \
 "car_bsp\PID.o" \
 "car_bsp\draw.o" \
 "car_bsp\key.o" \
@@ -66,7 +74,9 @@ OBJS__QUOTED += \
 "car_bsp\vcc_adc.o" 
 
 C_DEPS__QUOTED += \
+"car_bsp\ADC.d" \
 "car_bsp\Buzzer.d" \
+"car_bsp\No_Mcu_Ganv_Grayscale_Sensor.d" \
 "car_bsp\PID.d" \
 "car_bsp\draw.d" \
 "car_bsp\key.d" \
@@ -81,7 +91,9 @@ C_DEPS__QUOTED += \
 "car_bsp\vcc_adc.d" 
 
 C_SRCS__QUOTED += \
+"../car_bsp/ADC.c" \
 "../car_bsp/Buzzer.c" \
+"../car_bsp/No_Mcu_Ganv_Grayscale_Sensor.c" \
 "../car_bsp/PID.c" \
 "../car_bsp/draw.c" \
 "../car_bsp/key.c" \
