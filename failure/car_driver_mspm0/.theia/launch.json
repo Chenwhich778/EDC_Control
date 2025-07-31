@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "car_driver_mspm0",
+            "type": "ccs-debug",
+            "request": "launch",
+            "projectInfo": {
+                "name": "car_driver_mspm0",
+                "resourceId": "/car_driver_mspm0"
+            }
+        }
+    ]
+}
