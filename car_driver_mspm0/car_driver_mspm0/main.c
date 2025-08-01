@@ -53,14 +53,14 @@
 #define CALIBRATION_DELAY_MS 2000  // 校准等待时间(2秒)
 
 // 循迹参数
-#define BASE_SPEED 90            // 基础速度
+#define BASE_SPEED 60          // 基础速度
 #define KP 9.0                   // 比例控制系数
 #define TURN_THRESHOLD 4          // 检测到多少传感器触发转弯
 #define TURN_SLOW_DOWN_FACTOR 0.3 // 转弯时速度降低系数
 #define MAX_TURN_COUNT 40         // 最大转弯计数
 
        // 在全局变量区新增
-#define TURN_ANGLE 80.0f       // 目标转弯角度(略小于90度用于提前量)
+#define TURN_ANGLE 85.0f       // 目标转弯角度(略小于90度用于提前量)
 #define MIN_TURN_STRENGTH 0.3f // 最小转弯强度
 #define MAX_TURN_STRENGTH 0.6f // 最大转弯强度
 float turn_start_yaw = 0.0f;   // 记录转弯开始时的yaw角
@@ -357,13 +357,15 @@ int main(void)
             
             // sprintf(sM3_C, "%d", (Digtal>>3)&0x01);
             // sprintf(sM4_C, "%d",(Digtal>>4)&0x01);
-            sprintf(sM3_C, "%d%d%d%d %d%d%d%d", (Digtal >> 0) & 0x01,
-            (Digtal >> 1) & 0x01, (Digtal >> 2) & 0x01, (Digtal >> 3) & 0x01,
-            (Digtal >> 4) & 0x01, (Digtal >> 5) & 0x01, (Digtal >> 6) & 0x01,
-            (Digtal >> 7) & 0x01);
+            // sprintf(sM3_C, "%d%d%d%d %d%d%d%d", (Digtal >> 0) & 0x01,
+            // (Digtal >> 1) & 0x01, (Digtal >> 2) & 0x01, (Digtal >> 3) & 0x01,
+            // (Digtal >> 4) & 0x01, (Digtal >> 5) & 0x01, (Digtal >> 6) & 0x01,
+            // (Digtal >> 7) & 0x01);
             // sprintf(sM4_C, "%.0f",speed4);
+            sprintf(sM3_C, "%.0f",speed3);
+            sprintf(sM4_C, "%.0f",speed4);
             OLED_ShowString(40,0,sM3_C);
-            // OLED_ShowString(96,0,sM4_C);
+            OLED_ShowString(96,0,sM4_C);
             OLED_ShowString(54,2,syaw);
             OLED_ShowString(54,4,spitch);
             OLED_ShowString(24,6,sroll);
@@ -396,33 +398,37 @@ int main(void)
         adjust=-yaw/360*4096;
         //  Servo_SetPosition(1,servo_x+adjust,1000);
         int road_tmp=b1-start_count;
-        // switch(TURN_COUNT%4){
-        //     case 1:if(road_tmp>400)
-        //                mibu_x=-(road_tmp-400)/800*10;
-        //             break;
-        //     case 0: if (TURN_COUNT==0) {
-        //                mibu_x=10;
-        //             }
-        //             else
-        //                mibu_x=road_tmp/1200*20-10;
-        //             break;
-        //     case 3:if(road_tmp<800)
-        //                mibu_x=10-road_tmp/800*10;
-        //             break;
-        //     default:mibu_x=0;
-        //             break;
-        // }
+        switch(TURN_COUNT%4){
+            case 1:if(road_tmp>400)
+                       mibu_x=-(road_tmp-400)/800*20;
+                    break;
+            case 0: if (TURN_COUNT==0) {
+                       mibu_x=20;
+                    }
+                    else
+                       mibu_x=road_tmp/1200*40-20;
+                    break;
+            case 3:if(road_tmp<800)
+                       mibu_x=20-road_tmp/800*20;
+                    break;
+            default:mibu_x=0;
+                    break;
+        }
         if(servo_flag==1){
+            if(Receive)
          control_camera(x+mibu_x, y+mibu_y);
+
          Servo_SetPosition(1, servo_x+adjust, 900);
          Servo_SetPosition(2, servo_y, 800);
+
+
          if(laser_flag==1){
          DL_GPIO_setPins(GPIO_LASER_PORT, GPIO_LASER_PIN_3_PIN);
          laser_flag=2;
          }
         }
-
-
+        
+ 
 
 
 
@@ -515,7 +521,7 @@ if (turn_flag == 1&&turn_count==0) {
         turn_flag = 0;
         left_target = current_base_speed - steer;
         right_target = current_base_speed + steer;
-        pid_left.integral+=1.0*left_target;
+        pid_left.integral=1.45*left_target;
     }
 } else {
     // 正常循迹模式
@@ -534,6 +540,6 @@ EN = -1;
         
 
         /* 轮询基本延时 */
-        //   delay_ms(10);
+          delay_ms(4);
     }
 }

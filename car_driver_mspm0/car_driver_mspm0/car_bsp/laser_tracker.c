@@ -14,8 +14,8 @@ float prev_error_x = 0, prev_error_y = 0;      // 上一次误差
 
 // 水平方向PID参数（较大系数）
 #define KP_X      0.2f  // 比例系数（较大值）0.2
-#define KI_X      0.002f  // 积分系数0.001
-#define KD_X      0.006f // 微分系0.006
+#define KI_X      0.001f  // 积分系数0.001
+#define KD_X      0.008f // 微分系0.006
 
 // 垂直方向PID参数（较小系数）
 #define KP_Y      0.09f  // 比例系数（较小值）
@@ -48,7 +48,7 @@ extern int distance;
 extern uint8_t laser_flag;
 extern int b1;
 extern int b2;
-
+extern uint8_t TURN_COUNT;
 // 运动预测参数
 const float PREDICTION_FACTOR = 0.3f;          // 预测因子
 const int MIN_MOVE_FOR_PREDICTION = 10;        // 触发预测的最小移动量
@@ -119,9 +119,12 @@ void control_camera(int obj_x, int obj_y) {
         predicted_x = obj_x + (int)(PREDICTION_FACTOR * velocity_x);
         predicted_y = obj_y + (int)(PREDICTION_FACTOR * velocity_y);
     }
-    
+    int error_x;
     // 计算与图像中心的误差
-    int error_x = CAMERA_CENTER_X - predicted_x+(b1-b2)*8;
+     if(TURN_COUNT%4==0&&TURN_COUNT!=0)
+    error_x = CAMERA_CENTER_X - predicted_x+(b1-b2)/distance*1400;
+    else if(TURN_COUNT%4==2)
+     error_x = CAMERA_CENTER_X - predicted_x-(b1-b2)/distance*1400;
     int error_y = laser_y - predicted_y;
     
     // 微调步长设置
@@ -180,8 +183,7 @@ else {
     //     }
     // } else {
     //     lock_count = 0;
-    // }
-    
+    // }0
     // 水平方向PID控制
     if (allow_move && abs(error_x) > LOCK_THRESHOLD_X) {
         float P = KP_X * error_x;
@@ -189,7 +191,7 @@ else {
         float I = KI_X * integral_x;
         float D = KD_X * (error_x - prev_error_x);
         constrain(integral_x,-100,100);
-
+       
         float pid_output = (P + I + D)*0.8+0.2*pre_out_x;
         pre_out_x = pid_output;
         prev_error_x = error_x;
