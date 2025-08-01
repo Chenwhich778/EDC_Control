@@ -294,7 +294,7 @@ void control_camera(int obj_x, int obj_y) {
             consecutive_steps++;
             servo_y = fine_servo_y.base;
         }
-    }s
+    }
     
     // 执行舵机控制
     static int last_servo_x = 700;

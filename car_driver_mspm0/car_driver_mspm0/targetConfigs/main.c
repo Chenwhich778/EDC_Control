@@ -53,7 +53,7 @@
 #define CALIBRATION_DELAY_MS 2000  // 校准等待时间(2秒)
 
 // 循迹参数
-#define BASE_SPEED 100            // 基础速度
+#define BASE_SPEED 85            // 基础速度
 #define KP 9.0                   // 比例控制系数
 #define TURN_THRESHOLD 4          // 检测到多少传感器触发转弯
 #define TURN_SLOW_DOWN_FACTOR 0.6 // 转弯时速度降低系数
@@ -67,7 +67,7 @@ float turn_start_yaw = 0.0f;   // 记录转弯开始时的yaw角
 uint8_t trun_count = 0;
 uint8_t TURN_COUNT = 0;
 // 传感器权重（右负左负）
-const float weights[8] = {2, 1.5, 1, 0.5, -0.5,- 1, -1.5,- 2};
+const float weights[8] = {3, 2, 1, 0.5, -0.5,- 1, -2,- 3};
 
 //ganv灰度传感器
 unsigned short Anolog[8]={0};
@@ -169,6 +169,8 @@ float speed3=0;
 float left_target=0;
 float right_target=0;
 uint8_t circle=0;
+int start_count=0;//编码器
+uint8_t turn_flag=0;
 
 
 /* 将逻辑电平转化为数据，灰度中心离巡线越远，数值变化越大，变化范围-8~+8，有缺陷，但寻单个曲线足够 */
@@ -195,8 +197,8 @@ int main(void)
    set_rgb_duty(0,0,0);
 
     /* 初始化系统，由sysconfig配置 */
-    int turn=1;
-    int turn_flag=0;
+    uint8_t servo_flag=0;
+    
     int turn_count=0;
     // int base_speed = 50;  
     SYSCFG_DL_init();
@@ -270,21 +272,23 @@ int main(void)
 
     while (1) 
     {
+        static uint32_t oled_count=0;
+        uint16_t oled_duty=1;
         // Read_Grayscale(sensor_values);
         UART0_ProcessFrame();
-        
+        printf("%.1f,%.1f\n",speed3,speed4);
         // yaw_f-=0.01478;
-        a1=get_motor_enc_count(3);
-        b1=get_motor_enc_count(4);
+        
 		IMU_getYawPitchRoll(ypr);
         ypr[0]-=yaw_f;
         float tmp=ypr[0]-pre_yaw;
-        if(tmp<-200)
-            mibu=+360;
-        else if(tmp>200)
+        if(tmp<-100)
+            mibu+=360;
+        else if(tmp>100)
             mibu-=360;
         pre_yaw=ypr[0];
-        ypr[0]+=mibu;
+
+        float yaw=ypr[0]+mibu;
         // while(ypr[0]>180)
         // ypr[0]-=360;
         // while(ypr[0]<-180)
@@ -297,42 +301,59 @@ int main(void)
         if(input == '*' || input == '#') {
             handle_key_press(input);
         }
-        if(input>='1'&&input<='5' )
+        else if(input>='1'&&input<='5' )
         circle=input-'0';
+        else if(input=='A')
+        servo_flag=1;
+        else if(input=='D'){//重置
+            EN=-1;
+            circle=0;
+            servo_flag=0;
+            PID_Init(&pid_left, 3, 2.3, 0.008, 0.01, 1000);
+            PID_Init(&pid_right, 2.9, 2.2, 0.008, 0.01, 1000);
+            pid_left.integral=BASE_SPEED*1.6;
+            pid_right.integral=BASE_SPEED*1.8;
+            oled_duty=1;
+            TURN_COUNT=0;
+        }
 // 传感器常规任务
         No_Mcu_Ganv_Sensor_Task_Without_tick(&sensor);
         
         // 获取并显示传感器数据
         Digtal = Get_Digtal_For_User(&sensor);
 
-        
-        OLED_Clear();
-		OLED_DrawBMP(0, 0, 16, 2  , qishi);
-		OLED_ShowString(16,0,"M3:");
-        OLED_ShowString(72,0,"M4:");
-		OLED_ShowString(0,2,"yaw  :");
-		OLED_ShowString(0,4,"EN:");
-		OLED_ShowString(0,6,"x :");
-        OLED_ShowString(64,6,"y :");
-		sprintf(syaw, "%.2f", ypr[0]);
-		sprintf(spitch, "%d  %c", EN,input);
-		sprintf(sroll, "%d", x);
-        sprintf(srol, "%d", y);
-        
+        if(oled_count++%oled_duty==0){
+            OLED_Clear();
+            OLED_DrawBMP(0, 0, 16, 2  , qishi);
+            OLED_ShowString(16,0,"M3:");
+            OLED_ShowString(72,0,"M4:");
+            OLED_ShowString(0,2,"yaw  :");
+            OLED_ShowString(0,4,"EN:");
+            OLED_ShowString(0,6,"x :");
+            OLED_ShowString(64,6,"y :");
+            sprintf(syaw, "%.2f", yaw);
+            sprintf(spitch, "%d  %c", EN,input);
+            sprintf(sroll, "%d", a1);
+            sprintf(srol, "%d", b1);
+            
+            // sprintf(sM3_C, "%d", (Digtal>>3)&0x01);
+            // sprintf(sM4_C, "%d",(Digtal>>4)&0x01);
+            sprintf(sM3_C, "%.0f", speed3);
+            sprintf(sM4_C, "%.0f",speed4);
+            OLED_ShowString(40,0,sM3_C);
+            OLED_ShowString(96,0,sM4_C);
+            OLED_ShowString(54,2,syaw);
+            OLED_ShowString(54,4,spitch);
+            OLED_ShowString(24,6,sroll);
+            OLED_ShowString(96,6,srol);
+            SPI0_reload();
+        }
+        a1=get_motor_enc_count(3);
+        b1=get_motor_enc_count(4);
         speed4=(b1-b2)*5*0.5+speed4_filter*0.5;
         speed3=(a1-a2)*5*0.5+speed3_filter*0.5;
         speed4_filter=(b1-b2)*5;
         speed3_filter=(a1-a2)*5;
-        
-        sprintf(sM3_C, "%d", (Digtal>>3)&0x01);
-        sprintf(sM4_C, "%d",(Digtal>>4)&0x01);
-        OLED_ShowString(40,0,sM3_C);
-		OLED_ShowString(96,0,sM4_C);
-		OLED_ShowString(54,2,syaw);
-		OLED_ShowString(54,4,spitch);
-		OLED_ShowString(24,6,sroll);
-        OLED_ShowString(96,6,srol);
-        SPI0_reload();
         a2=a1;
         b2=b1;
 
@@ -345,19 +366,12 @@ printf("%.2f,%.2f\n",speed3,speed4);
 
         /* 根据IMU数据行驶走直线 */
         
-        adjust=-ypr[0]/360*4096;
+        adjust=-yaw/360*4096;
         //  Servo_SetPosition(1,servo_x+adjust,1000);
-        if(turn_flag==0){
+        if(servo_flag==1){
          control_camera(x, y);
          Servo_SetPosition(1, servo_x+adjust, 1200);
-        Servo_SetPosition(2, servo_y, 1000);
-
-        }
-        if(turn_flag==1){
-         control_camera(x, y);
-         Servo_SetPosition(1, servo_x+adjust, 1200);
-         Servo_SetPosition(2, servo_y, 1000);
-
+         Servo_SetPosition(2, servo_y, 800);
         }
 
 
@@ -370,18 +384,20 @@ printf("%.2f,%.2f\n",speed3,speed4);
         int right_sensors = 0;
         
         // 1. 计算加权误差
-        for (int i = 0; i < 8; i++) {
-            // 检查第i位是否检测到黑线（0表示检测到）
-            if (!((Digtal>>i)&0x01)) {
-                error += weights[i];
-                sensor_count++;
-                
-                // 统计左右传感器检测数量
-                if (i < 4) left_sensors++;
-                else right_sensors++;
+        if(EN==1){
+            for (int i = 0; i < 8; i++) {
+                // 检查第i位是否检测到黑线（0表示检测到）
+                if (!((Digtal>>i)&0x01)) {
+                    error += weights[i];
+                    sensor_count++;
+                    
+                    // 统计左右传感器检测数量
+                    if (i < 4) left_sensors++;
+                    else right_sensors++;
+                }
             }
+            oled_duty=50;
         }
-        
         // 2. 处理不同检测情况
         if (sensor_count > 0) {
             error /= sensor_count; // 计算平均位置误差
@@ -399,6 +415,11 @@ printf("%.2f,%.2f\n",speed3,speed4);
                 is_turn = 1;
             }
         }
+        // if((b1-start_count)>=1200){
+        //     is_turn=1;
+        //     start_count=b1;
+        // }
+        
         
         // 4. 比例控制计算转向量
         float steer = KP * error;
@@ -412,7 +433,7 @@ printf("%.2f,%.2f\n",speed3,speed4);
 if (is_turn ==1 && turn_flag == 0) {
     turn_count=7;
     turn_flag = 1;
-    turn_start_yaw = ypr[0]; // 记录开始转弯时的初始角度
+    turn_start_yaw = yaw; // 记录开始转弯时的初始角度
     current_base_speed *= TURN_SLOW_DOWN_FACTOR;
 }
 if(turn_count!=0)
@@ -420,7 +441,7 @@ turn_count--;
 
 if (turn_flag == 1&&turn_count==0) {
     // 计算当前转向角度（处理-180~180范围）
-    float angle_diff = ypr[0] - turn_start_yaw;
+    float angle_diff = yaw - turn_start_yaw;
     
     
     // 取绝对值得到实际转向角度
@@ -437,10 +458,12 @@ if (turn_flag == 1&&turn_count==0) {
         right_target = current_base_speed * turn_strength;
     } else {
         // 转弯完成
+        start_count=b1;
         TURN_COUNT++;
         turn_flag = 0;
         left_target = current_base_speed - steer;
         right_target = current_base_speed + steer;
+        pid_left.integral+=1.0*left_target;
     }
 } else {
     // 正常循迹模式

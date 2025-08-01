@@ -9,6 +9,7 @@ extern float left_target;
 extern float right_target;
 extern float speed4;
 extern  float speed3;
+extern uint8_t turn_flag;
 void TIMER_A0_100us_INST_IRQHandler(void)
 {
     switch( DL_TimerA_getPendingInterrupt(TIMER_A0_100us_INST) )
