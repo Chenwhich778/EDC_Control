@@ -53,16 +53,16 @@
 #define CALIBRATION_DELAY_MS 2000  // 校准等待时间(2秒)
 
 // 循迹参数
-#define BASE_SPEED 85            // 基础速度
+#define BASE_SPEED 90            // 基础速度
 #define KP 9.0                   // 比例控制系数
 #define TURN_THRESHOLD 4          // 检测到多少传感器触发转弯
-#define TURN_SLOW_DOWN_FACTOR 0.6 // 转弯时速度降低系数
+#define TURN_SLOW_DOWN_FACTOR 0.3 // 转弯时速度降低系数
 #define MAX_TURN_COUNT 40         // 最大转弯计数
 
        // 在全局变量区新增
 #define TURN_ANGLE 80.0f       // 目标转弯角度(略小于90度用于提前量)
-#define MIN_TURN_STRENGTH 0.5f // 最小转弯强度
-#define MAX_TURN_STRENGTH 0.8f // 最大转弯强度
+#define MIN_TURN_STRENGTH 0.3f // 最小转弯强度
+#define MAX_TURN_STRENGTH 0.6f // 最大转弯强度
 float turn_start_yaw = 0.0f;   // 记录转弯开始时的yaw角
 uint8_t trun_count = 0;
 uint8_t TURN_COUNT = 0;
@@ -179,6 +179,8 @@ uint8_t laser_flag=0;
 char show_key ={0};
 
 extern bool Receive;
+extern int distance;
+extern int adjusted_y;
 
 /* 将逻辑电平转化为数据，灰度中心离巡线越远，数值变化越大，变化范围-8~+8，有缺陷，但寻单个曲线足够 */
 void update_speed_sum(uint8_t data, uint32_t* speed_sum) 
@@ -248,8 +250,8 @@ int main(void)
     // NVIC_EnableIRQ(TIMER_G12_1ms_INST_INT_IRQN);
     for (int i=0; i <100; i++) {
     IMU_getYawPitchRoll(ypr); 
-    Servo_SetPosition(1, prime_x1 , 500);
-    Servo_SetPosition(2, prime_y1 , 500);
+    Servo_SetPosition(1, prime_x1 , 700);
+    Servo_SetPosition(2, prime_y1 , 700);
     delay_ms(10);
     }
 
@@ -278,7 +280,7 @@ int main(void)
     while (1) 
     {
         static uint32_t oled_count=0;
-        uint16_t oled_duty=1;
+        static uint16_t oled_duty=10000;
 
         UART0_ProcessFrame();
         printf("%.1f,%.1f\n",speed3,speed4);
@@ -327,6 +329,11 @@ int main(void)
             TURN_COUNT=0;
             laser_flag=0;
             DL_GPIO_clearPins(GPIO_LASER_PORT, GPIO_LASER_PIN_3_PIN);
+            Servo_SetPosition(1, prime_x1 , 700);
+            Servo_SetPosition(2, prime_y1 , 700);
+            mibu=0;
+            turn_flag = 0;
+            turn_count = 0;
         }
 // 传感器常规任务
         No_Mcu_Ganv_Sensor_Task_Without_tick(&sensor);
@@ -344,7 +351,7 @@ int main(void)
             OLED_ShowString(0,6,"x :");
             OLED_ShowString(64,6,"y :");
             sprintf(syaw, "%.2f", yaw);
-            sprintf(spitch, "%d  %c", EN,show_key);
+            sprintf(spitch, "%d  %c", EN,input);
             sprintf(sroll, "%d", x);
             sprintf(srol, "%d", y);
             
@@ -389,20 +396,25 @@ int main(void)
         adjust=-yaw/360*4096;
         //  Servo_SetPosition(1,servo_x+adjust,1000);
         int road_tmp=b1-start_count;
-        switch(TURN_COUNT%4){
-            case 0:if(road_tmp>400)
-                       mibu_x=-(road_tmp-400)/800*5;
-                    break;
-            case 1: mibu_x=road_tmp/1200*10-5;
-            case 2:if(road_tmp<800)
-                       mibu_x=5-road_tmp/800*5;
-                    break;
-            default:mibu_x=0;
-                    break;
-        }
+        // switch(TURN_COUNT%4){
+        //     case 1:if(road_tmp>400)
+        //                mibu_x=-(road_tmp-400)/800*10;
+        //             break;
+        //     case 0: if (TURN_COUNT==0) {
+        //                mibu_x=10;
+        //             }
+        //             else
+        //                mibu_x=road_tmp/1200*20-10;
+        //             break;
+        //     case 3:if(road_tmp<800)
+        //                mibu_x=10-road_tmp/800*10;
+        //             break;
+        //     default:mibu_x=0;
+        //             break;
+        // }
         if(servo_flag==1){
          control_camera(x+mibu_x, y+mibu_y);
-         Servo_SetPosition(1, servo_x+adjust, 1200);
+         Servo_SetPosition(1, servo_x+adjust, 900);
          Servo_SetPosition(2, servo_y, 800);
          if(laser_flag==1){
          DL_GPIO_setPins(GPIO_LASER_PORT, GPIO_LASER_PIN_3_PIN);
@@ -471,7 +483,7 @@ int main(void)
  
 // 修改后的转弯处理代码（替换原来的转弯处理部分）
 if (is_turn ==1 && turn_flag == 0) {
-    turn_count=7;
+    turn_count=5;
     turn_flag = 1;
     turn_start_yaw = yaw; // 记录开始转弯时的初始角度
     current_base_speed *= TURN_SLOW_DOWN_FACTOR;
@@ -495,7 +507,7 @@ if (turn_flag == 1&&turn_count==0) {
         
         // 执行左转：右轮前进，左轮后退
         left_target = -current_base_speed * turn_strength;
-        right_target = current_base_speed * turn_strength;
+        right_target = (current_base_speed * turn_strength)*0.3;
     } else {
         // 转弯完成
         start_count=b1;
@@ -511,7 +523,7 @@ if (turn_flag == 1&&turn_count==0) {
     right_target = current_base_speed + steer;
 }
 
-if(TURN_COUNT>=circle*4)
+if(TURN_COUNT>=circle*4&&is_turn==1)
 EN = -1;
         // 6. 速度限制
         left_target = (left_target < -500) ? -500 : (left_target > 500 ? 500 : left_target);

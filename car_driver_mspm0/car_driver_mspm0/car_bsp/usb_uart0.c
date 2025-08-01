@@ -2,8 +2,8 @@
 
 extern PID_Controller pid_left;
 extern PID_Controller pid_right;
-int x = 313;
-int y = 271;
+int x = 316;
+int y = 266;
 
 int R_pixel = 0;
 int distance = 0;
@@ -112,19 +112,15 @@ void UART0_ProcessFrame(void) {
     // 解析有效帧
     if (frame[0] == '!') {
         if (sscanf(&frame[1], "%d,%d,%d,%d", &x, &y,&R_pixel,&distance) != 4) {
-            x = 313;  // 解析失败时重置默认值
-            y = 271;
+            x = 316;  // 解析失败时重置默认值
+            y = 266;
         }
         if(x==0)
         {
-            x = 313;  // 解析失败时重置默认值
-            y = 271;
+            x = 316;  // 解析失败时重置默认值
+            y = 266;
         }
         Receive = true;
-    }
-    else {
-         x = 313;  // 解析失败时重置默认值
-            y = 271;
     }
     // 非'!'帧不处理但不清空缓冲区
 

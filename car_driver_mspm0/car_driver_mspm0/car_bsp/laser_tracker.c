@@ -13,14 +13,14 @@ float integral_x = 0, integral_y = 0;          // 积分项
 float prev_error_x = 0, prev_error_y = 0;      // 上一次误差
 
 // 水平方向PID参数（较大系数）
-#define KP_X      0.3f  // 比例系数（较大值）
-#define KI_X      0.01f  // 积分系数
-#define KD_X      0.1f // 微分系
+#define KP_X      0.2f  // 比例系数（较大值）0.2
+#define KI_X      0.002f  // 积分系数0.001
+#define KD_X      0.006f // 微分系0.006
 
 // 垂直方向PID参数（较小系数）
-#define KP_Y      0.3f  // 比例系数（较小值）
-#define KI_Y      0.01f
-#define KD_Y      0.09f
+#define KP_Y      0.09f  // 比例系数（较小值）
+#define KI_Y      0.001f
+#define KD_Y      0.001f
 
 // 系统全局变量
 SystemMode system_mode = MODE_RADAR_SCANNING;   // 当前系统模式
@@ -46,6 +46,8 @@ bool lock_flag=false;
 extern float adjust;
 extern int distance;
 extern uint8_t laser_flag;
+extern int b1;
+extern int b2;
 
 // 运动预测参数
 const float PREDICTION_FACTOR = 0.3f;          // 预测因子
@@ -75,15 +77,25 @@ static float constrain_float(float value, float min, float max) {
 
 
 int laser_y = CAMERA_CENTER_Y;
+float distance_ratio = 0;
+float max_adjustment_range = 0;
+float y_offset = 0;
+int adjusted_y;
 
 // 摄像头追踪控制函数
 void control_camera(int obj_x, int obj_y) {
     
-   if(distance<=600) laser_y = 277;
-    else if(distance>=601&&distance<=800) laser_y = 276;
-    else if(distance>=801&&distance<=1000) laser_y = 275;
-    else if(distance>=1001) laser_y = 273;
-
+    // distance_ratio = (float)distance / 500;
+    // max_adjustment_range = 480 * 0.2;
+    // y_offset = (distance_ratio - 1) * max_adjustment_range * 0.25;
+    // adjusted_y = laser_y - (int)y_offset;
+    if(distance >= 600){
+    int interval = (distance - 600) / 100;  // 整数除法
+    laser_y = 266 - 3 * (interval + 1);
+} else {
+    laser_y = 266;
+}
+    constrain(laser_y, 246, 266);
 
     
     // 计算目标移动量
@@ -109,18 +121,20 @@ void control_camera(int obj_x, int obj_y) {
     }
     
     // 计算与图像中心的误差
-    int error_x = CAMERA_CENTER_X - predicted_x;
+    int error_x = CAMERA_CENTER_X - predicted_x+(b1-b2)*8;
     int error_y = laser_y - predicted_y;
     
     // 微调步长设置
-    const float FINE_STEP_SIZE = 0.5f;
+    const float FINE_STEP_SIZE = 0.2f;
     float fine_step_x = 0;
     float fine_step_y = 0;
     
     // 锁定阈值
-    int LOCK_THRESHOLD_X = 5;
-    int LOCK_THRESHOLD_Y = 5;
+    int LOCK_THRESHOLD_X = 3;
+    int LOCK_THRESHOLD_Y = 3;
 
+    float pre_out_x = 0;
+    float pre_out_y = 0;
     // 高级锁定判断（基于目标区域）
     // if (y1<(257-(y3-y1)/50-2)&&y3>(257+(y3-y1)/50+2)&&x1<(371-(x3-x1)/50-2)&&x3>(371+(x3-x1)/50+2)) {
     //     Lock_count++;
@@ -142,27 +156,31 @@ void control_camera(int obj_x, int obj_y) {
     //     buzzer_mark=0;
     // }
 
-if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y)
-       {  if(laser_flag  ==0)
+if (abs(error_x) <= 5 && abs(error_y) <= 5)
+       { 
+        Lock_count++;
+        if (Lock_count >= 2){
+         if(laser_flag  ==0)
             laser_flag=1;
        }
-
-
-    // 锁定状态判断
-    if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y) {
-        lock_count++;
-        if (lock_count >= 2) {
-            // 锁定状态保持
-            consecutive_steps = 0;
-            velocity_x = 0.0f;
-            velocity_y = 0.0f;
-            lock_flag=true;
-
-            return;
-        }
-    } else {
-        lock_count = 0;
+       }
+else {
+        Lock_count = 0;
     }
+
+    // // 锁定状态判断
+    // if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y) {
+    //     lock_count++;
+    //     if (lock_count >= 2) {
+    //         // 锁定状态保持
+    //         consecutive_steps = 0;
+    //         velocity_x = 0.0f;
+    //         velocity_y = 0.0f;
+    //         lock_flag=true;
+    //     }
+    // } else {
+    //     lock_count = 0;
+    // }
     
     // 水平方向PID控制
     if (allow_move && abs(error_x) > LOCK_THRESHOLD_X) {
@@ -170,12 +188,13 @@ if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y)
         integral_x += error_x;
         float I = KI_X * integral_x;
         float D = KD_X * (error_x - prev_error_x);
-        constrain(integral_x,-10,10);
+        constrain(integral_x,-100,100);
 
-        float pid_output = P + I + D;
+        float pid_output = (P + I + D)*0.8+0.2*pre_out_x;
+        pre_out_x = pid_output;
         prev_error_x = error_x;
         fine_step_x = -pid_output;
-        constrain_float(fine_step_x, 0, 15*FINE_STEP_SIZE);
+        constrain_float(fine_step_x, 0, 10*FINE_STEP_SIZE);
     } else {
         integral_x = 0;
     }
@@ -187,7 +206,8 @@ if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y)
         float I = KI_Y * integral_y;
         float D = KD_Y * (error_y - prev_error_y);
         
-        float pid_output = P + I + D;
+        float pid_output =( P + I + D)*0.8+0.2*pre_out_y;
+        pre_out_y = pid_output;
         prev_error_y = error_y;
         fine_step_y = pid_output; 
         constrain_float(fine_step_x, 0, 2*FINE_STEP_SIZE);
@@ -201,7 +221,7 @@ if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y)
         if (fabs(fine_servo_x.fine) >= 1.0f) {
             int actual_step = (int)truncf(fine_servo_x.fine);
 
-            fine_servo_x.base = constrain(fine_servo_x.base + actual_step, 100,12000);
+            fine_servo_x.base = constrain(fine_servo_x.base + actual_step, 100,10000);
             fine_servo_x.fine -= actual_step;
             consecutive_steps++;
             servo_x = fine_servo_x.base;
@@ -212,7 +232,7 @@ if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y)
         fine_servo_y.fine += fine_step_y;
         if (fabs(fine_servo_y.fine) >= 1.0f) {
             int actual_step = (int)truncf(fine_servo_y.fine);
-            fine_servo_y.base = constrain(fine_servo_y.base + actual_step, 2000, 2550);
+            fine_servo_y.base = constrain(fine_servo_y.base + actual_step, 2000, 2450);
             fine_servo_y.fine -= actual_step;
             consecutive_steps++;
             servo_y = fine_servo_y.base;

@@ -15,8 +15,8 @@ typedef enum {
 #define RADAR_MIN_RANGE 1.0f    // 雷达最小探测距离(m)
 
 // 摄像头中心位置
-#define CAMERA_CENTER_X 313
-#define CAMERA_CENTER_Y 271
+#define CAMERA_CENTER_X 316
+#define CAMERA_CENTER_Y 266
 
 // 全局状态
 extern int servo_x;        // 水平舵机初始值
