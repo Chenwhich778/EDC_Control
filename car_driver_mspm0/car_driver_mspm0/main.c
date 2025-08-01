@@ -60,9 +60,13 @@
 #define MAX_TURN_COUNT 40         // 最大转弯计数
 
        // 在全局变量区新增
-#define TURN_ANGLE 85.0f       // 目标转弯角度(略小于90度用于提前量)
+#define TURN_ANGLE 80.0f       // 目标转弯角度(略小于90度用于提前量)
 #define MIN_TURN_STRENGTH 0.3f // 最小转弯强度
 #define MAX_TURN_STRENGTH 0.6f // 最大转弯强度
+
+float speed_ramp_factor = 1.0;  // 速度渐变因子 [0.3~1.0]
+const float RAMP_RATE = 0.01;    // 每次循环速度增加量（越小越平滑）
+
 float turn_start_yaw = 0.0f;   // 记录转弯开始时的yaw角
 uint8_t trun_count = 0;
 uint8_t TURN_COUNT = 0;
@@ -250,7 +254,7 @@ int main(void)
     // NVIC_EnableIRQ(TIMER_G12_1ms_INST_INT_IRQN);
     for (int i=0; i <100; i++) {
     IMU_getYawPitchRoll(ypr); 
-    Servo_SetPosition(1, prime_x1 , 700);
+    Servo_SetPosition(1, prime_x1+1200 , 700);
     Servo_SetPosition(2, prime_y1 , 700);
     delay_ms(10);
     }
@@ -394,22 +398,20 @@ int main(void)
       set_buzzer_hz_duty(0, 0);
 
     
-        //舵机控制
-        adjust=-yaw/360*4096;
         //  Servo_SetPosition(1,servo_x+adjust,1000);
         int road_tmp=b1-start_count;
         switch(TURN_COUNT%4){
             case 1:if(road_tmp>400)
-                       mibu_x=-(road_tmp-400)/800*20;
+                       mibu_x=-(road_tmp-400)/800*10;
                     break;
             case 0: if (TURN_COUNT==0) {
-                       mibu_x=20;
+                       mibu_x=10;
                     }
                     else
-                       mibu_x=road_tmp/1200*40-20;
+                       mibu_x=road_tmp/1200*20-10;
                     break;
             case 3:if(road_tmp<800)
-                       mibu_x=20-road_tmp/800*20;
+                       mibu_x=10-road_tmp/800*10;
                     break;
             default:mibu_x=0;
                     break;
@@ -418,8 +420,8 @@ int main(void)
             if(Receive)
          control_camera(x+mibu_x, y+mibu_y);
 
-         Servo_SetPosition(1, servo_x+adjust, 900);
-         Servo_SetPosition(2, servo_y, 800);
+         Servo_SetPosition(1, servo_x, 1500);
+         Servo_SetPosition(2, servo_y, 900);
 
 
          if(laser_flag==1){
@@ -473,10 +475,7 @@ int main(void)
                 is_turn = 1;
             }
         }
-        // if((b1-start_count)>=1200){
-        //     is_turn=1;
-        //     start_count=b1;
-        // }
+        
         
         
         // 4. 比例控制计算转向量
@@ -489,7 +488,7 @@ int main(void)
  
 // 修改后的转弯处理代码（替换原来的转弯处理部分）
 if (is_turn ==1 && turn_flag == 0) {
-    turn_count=5;
+    turn_count=4;
     turn_flag = 1;
     turn_start_yaw = yaw; // 记录开始转弯时的初始角度
     current_base_speed *= TURN_SLOW_DOWN_FACTOR;
@@ -515,18 +514,22 @@ if (turn_flag == 1&&turn_count==0) {
         left_target = -current_base_speed * turn_strength;
         right_target = (current_base_speed * turn_strength)*0.3;
     } else {
-        // 转弯完成
-        start_count=b1;
-        TURN_COUNT++;
-        turn_flag = 0;
-        left_target = current_base_speed - steer;
-        right_target = current_base_speed + steer;
-        pid_left.integral=1.45*left_target;
+        // 转弯完成时，初始化渐变加速
+    speed_ramp_factor = 0.2;  // 从60%速度开始恢复
+    turn_flag = 0;
+    TURN_COUNT++;
+    start_count = b1;
     }
-} else {
-    // 正常循迹模式
-    left_target = current_base_speed - steer;
-    right_target = current_base_speed + steer;
+} 
+
+// 正常循迹模式（增加渐变加速）
+if (!turn_flag) {
+    if (speed_ramp_factor < 1.0) {
+        speed_ramp_factor += RAMP_RATE;
+    }
+    float effective_speed = BASE_SPEED * speed_ramp_factor;
+    left_target = effective_speed - steer;
+    right_target = effective_speed + steer;
 }
 
 if(TURN_COUNT>=circle*4&&is_turn==1)
@@ -540,6 +543,6 @@ EN = -1;
         
 
         /* 轮询基本延时 */
-          delay_ms(4);
+       //   delay_ms(4);
     }
 }
