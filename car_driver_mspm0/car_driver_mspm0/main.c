@@ -171,7 +171,14 @@ float right_target=0;
 uint8_t circle=0;
 int start_count=0;//编码器
 uint8_t turn_flag=0;
+uint8_t buzzer_count = 0;
+int mibu_x=0;//弥补发的中心点不准
+int mibu_y=0;
+uint8_t laser_flag=0;
 
+char show_key ={0};
+
+extern bool Receive;
 
 /* 将逻辑电平转化为数据，灰度中心离巡线越远，数值变化越大，变化范围-8~+8，有缺陷，但寻单个曲线足够 */
 void update_speed_sum(uint8_t data, uint32_t* speed_sum) 
@@ -265,8 +272,6 @@ int main(void)
     /* 初始化电机 */
     motor_init();
 
-    /* 设置电机速度和方向 -1000 ~ -1 和 1~1000 */
-    // set_motor(speed[0],speed[1],speed[2],speed[3]
     
 
 
@@ -274,7 +279,7 @@ int main(void)
     {
         static uint32_t oled_count=0;
         uint16_t oled_duty=1;
-        // Read_Grayscale(sensor_values);
+
         UART0_ProcessFrame();
         printf("%.1f,%.1f\n",speed3,speed4);
         // yaw_f-=0.01478;
@@ -297,6 +302,11 @@ int main(void)
             uint8_t keyboard=getKeyValue();
             input=get_keychar(keyboard);
         }
+        
+        if(input != '0')
+        {
+            show_key = input;
+        }
 
         if(input == '*' || input == '#') {
             handle_key_press(input);
@@ -315,6 +325,8 @@ int main(void)
             pid_right.integral=BASE_SPEED*1.8;
             oled_duty=1;
             TURN_COUNT=0;
+            laser_flag=0;
+            DL_GPIO_clearPins(GPIO_LASER_PORT, GPIO_LASER_PIN_3_PIN);
         }
 // 传感器常规任务
         No_Mcu_Ganv_Sensor_Task_Without_tick(&sensor);
@@ -326,22 +338,25 @@ int main(void)
             OLED_Clear();
             OLED_DrawBMP(0, 0, 16, 2  , qishi);
             OLED_ShowString(16,0,"M3:");
-            OLED_ShowString(72,0,"M4:");
+            // OLED_ShowString(72,0,"M4:");
             OLED_ShowString(0,2,"yaw  :");
             OLED_ShowString(0,4,"EN:");
             OLED_ShowString(0,6,"x :");
             OLED_ShowString(64,6,"y :");
             sprintf(syaw, "%.2f", yaw);
-            sprintf(spitch, "%d  %c", EN,input);
-            sprintf(sroll, "%d", a1);
-            sprintf(srol, "%d", b1);
+            sprintf(spitch, "%d  %c", EN,show_key);
+            sprintf(sroll, "%d", x);
+            sprintf(srol, "%d", y);
             
             // sprintf(sM3_C, "%d", (Digtal>>3)&0x01);
             // sprintf(sM4_C, "%d",(Digtal>>4)&0x01);
-            sprintf(sM3_C, "%.0f", speed3);
-            sprintf(sM4_C, "%.0f",speed4);
+            sprintf(sM3_C, "%d%d%d%d %d%d%d%d", (Digtal >> 0) & 0x01,
+            (Digtal >> 1) & 0x01, (Digtal >> 2) & 0x01, (Digtal >> 3) & 0x01,
+            (Digtal >> 4) & 0x01, (Digtal >> 5) & 0x01, (Digtal >> 6) & 0x01,
+            (Digtal >> 7) & 0x01);
+            // sprintf(sM4_C, "%.0f",speed4);
             OLED_ShowString(40,0,sM3_C);
-            OLED_ShowString(96,0,sM4_C);
+            // OLED_ShowString(96,0,sM4_C);
             OLED_ShowString(54,2,syaw);
             OLED_ShowString(54,4,spitch);
             OLED_ShowString(24,6,sroll);
@@ -358,21 +373,46 @@ int main(void)
         b2=b1;
 
 
-printf("%.2f,%.2f\n",speed3,speed4);
+// printf("%.2f,%.2f\n",speed3,speed4);
+         
+        //判断jetson自启动
+          if (Receive && buzzer_count == 0)
+      buzzer_count = 1;
+    if (buzzer_count > 0 && buzzer_count <= 20) {
+      buzzer_count++;
+      set_buzzer_hz_duty(600, 50);
+    } else if (buzzer_count > 20)
+      set_buzzer_hz_duty(0, 0);
 
-        /* 根据灰度数据行驶寻曲线 */
-		//  Digtal=IIC_Get_Digtal();
-		//  update_speed_sum(Digtal,&speed_sum);
-
-        /* 根据IMU数据行驶走直线 */
-        
+    
+        //舵机控制
         adjust=-yaw/360*4096;
         //  Servo_SetPosition(1,servo_x+adjust,1000);
+        int road_tmp=b1-start_count;
+        switch(TURN_COUNT%4){
+            case 0:if(road_tmp>400)
+                       mibu_x=-(road_tmp-400)/800*5;
+                    break;
+            case 1: mibu_x=road_tmp/1200*10-5;
+            case 2:if(road_tmp<800)
+                       mibu_x=5-road_tmp/800*5;
+                    break;
+            default:mibu_x=0;
+                    break;
+        }
         if(servo_flag==1){
-         control_camera(x, y);
+         control_camera(x+mibu_x, y+mibu_y);
          Servo_SetPosition(1, servo_x+adjust, 1200);
          Servo_SetPosition(2, servo_y, 800);
+         if(laser_flag==1){
+         DL_GPIO_setPins(GPIO_LASER_PORT, GPIO_LASER_PIN_3_PIN);
+         laser_flag=2;
+         }
         }
+
+
+
+
 
 
 
@@ -396,7 +436,7 @@ printf("%.2f,%.2f\n",speed3,speed4);
                     else right_sensors++;
                 }
             }
-            oled_duty=50;
+            oled_duty=10000;
         }
         // 2. 处理不同检测情况
         if (sensor_count > 0) {

@@ -171,28 +171,28 @@ extern "C" {
 #define I2C_0_INST_INT_IRQN                                        I2C0_INT_IRQn
 #define I2C_0_BUS_SPEED_HZ                                                100000
 #define GPIO_I2C_0_SDA_PORT                                                GPIOA
-#define GPIO_I2C_0_SDA_PIN                                        DL_GPIO_PIN_28
-#define GPIO_I2C_0_IOMUX_SDA                                      (IOMUX_PINCM3)
-#define GPIO_I2C_0_IOMUX_SDA_FUNC                       IOMUX_PINCM3_PF_I2C0_SDA
+#define GPIO_I2C_0_SDA_PIN                                         DL_GPIO_PIN_0
+#define GPIO_I2C_0_IOMUX_SDA                                      (IOMUX_PINCM1)
+#define GPIO_I2C_0_IOMUX_SDA_FUNC                       IOMUX_PINCM1_PF_I2C0_SDA
 #define GPIO_I2C_0_SCL_PORT                                                GPIOA
-#define GPIO_I2C_0_SCL_PIN                                        DL_GPIO_PIN_31
-#define GPIO_I2C_0_IOMUX_SCL                                      (IOMUX_PINCM6)
-#define GPIO_I2C_0_IOMUX_SCL_FUNC                       IOMUX_PINCM6_PF_I2C0_SCL
+#define GPIO_I2C_0_SCL_PIN                                         DL_GPIO_PIN_1
+#define GPIO_I2C_0_IOMUX_SCL                                      (IOMUX_PINCM2)
+#define GPIO_I2C_0_IOMUX_SCL_FUNC                       IOMUX_PINCM2_PF_I2C0_SCL
 
 
 /* Defines for USB_UART_0 */
-#define USB_UART_0_INST                                                    UART0
+#define USB_UART_0_INST                                                    UART2
 #define USB_UART_0_INST_FREQUENCY                                       32000000
-#define USB_UART_0_INST_IRQHandler                              UART0_IRQHandler
-#define USB_UART_0_INST_INT_IRQN                                  UART0_INT_IRQn
+#define USB_UART_0_INST_IRQHandler                              UART2_IRQHandler
+#define USB_UART_0_INST_INT_IRQN                                  UART2_INT_IRQn
 #define GPIO_USB_UART_0_RX_PORT                                            GPIOA
 #define GPIO_USB_UART_0_TX_PORT                                            GPIOA
-#define GPIO_USB_UART_0_RX_PIN                                     DL_GPIO_PIN_1
-#define GPIO_USB_UART_0_TX_PIN                                     DL_GPIO_PIN_0
-#define GPIO_USB_UART_0_IOMUX_RX                                  (IOMUX_PINCM2)
-#define GPIO_USB_UART_0_IOMUX_TX                                  (IOMUX_PINCM1)
-#define GPIO_USB_UART_0_IOMUX_RX_FUNC                   IOMUX_PINCM2_PF_UART0_RX
-#define GPIO_USB_UART_0_IOMUX_TX_FUNC                   IOMUX_PINCM1_PF_UART0_TX
+#define GPIO_USB_UART_0_RX_PIN                                    DL_GPIO_PIN_22
+#define GPIO_USB_UART_0_TX_PIN                                    DL_GPIO_PIN_21
+#define GPIO_USB_UART_0_IOMUX_RX                                 (IOMUX_PINCM47)
+#define GPIO_USB_UART_0_IOMUX_TX                                 (IOMUX_PINCM46)
+#define GPIO_USB_UART_0_IOMUX_RX_FUNC                  IOMUX_PINCM47_PF_UART2_RX
+#define GPIO_USB_UART_0_IOMUX_TX_FUNC                  IOMUX_PINCM46_PF_UART2_TX
 #define USB_UART_0_BAUD_RATE                                            (115200)
 #define USB_UART_0_IBRD_32_MHZ_115200_BAUD                                  (17)
 #define USB_UART_0_FBRD_32_MHZ_115200_BAUD                                  (23)
@@ -208,22 +208,6 @@ extern "C" {
 #define UART_1_BAUD_RATE                                                (115200)
 #define UART_1_IBRD_32_MHZ_115200_BAUD                                      (17)
 #define UART_1_FBRD_32_MHZ_115200_BAUD                                      (23)
-/* Defines for UART_0 */
-#define UART_0_INST                                                        UART2
-#define UART_0_INST_FREQUENCY                                           32000000
-#define UART_0_INST_IRQHandler                                  UART2_IRQHandler
-#define UART_0_INST_INT_IRQN                                      UART2_INT_IRQn
-#define GPIO_UART_0_RX_PORT                                                GPIOA
-#define GPIO_UART_0_TX_PORT                                                GPIOA
-#define GPIO_UART_0_RX_PIN                                        DL_GPIO_PIN_22
-#define GPIO_UART_0_TX_PIN                                        DL_GPIO_PIN_21
-#define GPIO_UART_0_IOMUX_RX                                     (IOMUX_PINCM47)
-#define GPIO_UART_0_IOMUX_TX                                     (IOMUX_PINCM46)
-#define GPIO_UART_0_IOMUX_RX_FUNC                      IOMUX_PINCM47_PF_UART2_RX
-#define GPIO_UART_0_IOMUX_TX_FUNC                      IOMUX_PINCM46_PF_UART2_TX
-#define UART_0_BAUD_RATE                                                  (9600)
-#define UART_0_IBRD_32_MHZ_9600_BAUD                                       (208)
-#define UART_0_FBRD_32_MHZ_9600_BAUD                                        (21)
 
 
 
@@ -287,6 +271,12 @@ extern "C" {
 /* Defines for CS0: GPIOA.8 with pinCMx 19 on package pin 54 */
 #define SPI0_CS0_PIN                                             (DL_GPIO_PIN_8)
 #define SPI0_CS0_IOMUX                                           (IOMUX_PINCM19)
+/* Port definition for Pin Group GPIO_LASER */
+#define GPIO_LASER_PORT                                                  (GPIOA)
+
+/* Defines for PIN_3: GPIOA.12 with pinCMx 34 on package pin 5 */
+#define GPIO_LASER_PIN_3_PIN                                    (DL_GPIO_PIN_12)
+#define GPIO_LASER_PIN_3_IOMUX                                   (IOMUX_PINCM34)
 /* Defines for RESET: GPIOB.9 with pinCMx 26 on package pin 61 */
 #define OLED_RESET_PORT                                                  (GPIOB)
 #define OLED_RESET_PIN                                           (DL_GPIO_PIN_9)
@@ -299,23 +289,22 @@ extern "C" {
 #define OLED_CS_PORT                                                     (GPIOA)
 #define OLED_CS_PIN                                              (DL_GPIO_PIN_3)
 #define OLED_CS_IOMUX                                             (IOMUX_PINCM8)
+/* Port definition for Pin Group MOTOR1 */
+#define MOTOR1_PORT                                                      (GPIOB)
+
 /* Defines for CTRL1: GPIOB.13 with pinCMx 30 on package pin 1 */
-#define MOTOR1_CTRL1_PORT                                                (GPIOB)
 #define MOTOR1_CTRL1_PIN                                        (DL_GPIO_PIN_13)
 #define MOTOR1_CTRL1_IOMUX                                       (IOMUX_PINCM30)
 /* Defines for CTRL2: GPIOB.17 with pinCMx 43 on package pin 14 */
-#define MOTOR1_CTRL2_PORT                                                (GPIOB)
 #define MOTOR1_CTRL2_PIN                                        (DL_GPIO_PIN_17)
 #define MOTOR1_CTRL2_IOMUX                                       (IOMUX_PINCM43)
 /* Defines for ENCA1: GPIOB.14 with pinCMx 31 on package pin 2 */
-#define MOTOR1_ENCA1_PORT                                                (GPIOB)
 #define MOTOR1_ENCA1_IIDX                                   (DL_GPIO_IIDX_DIO14)
 #define MOTOR1_ENCA1_PIN                                        (DL_GPIO_PIN_14)
 #define MOTOR1_ENCA1_IOMUX                                       (IOMUX_PINCM31)
-/* Defines for ENCB1: GPIOA.12 with pinCMx 34 on package pin 5 */
-#define MOTOR1_ENCB1_PORT                                                (GPIOA)
-#define MOTOR1_ENCB1_PIN                                        (DL_GPIO_PIN_12)
-#define MOTOR1_ENCB1_IOMUX                                       (IOMUX_PINCM34)
+/* Defines for ENCB1: GPIOB.24 with pinCMx 52 on package pin 23 */
+#define MOTOR1_ENCB1_PIN                                        (DL_GPIO_PIN_24)
+#define MOTOR1_ENCB1_IOMUX                                       (IOMUX_PINCM52)
 /* Defines for CTRL3: GPIOA.25 with pinCMx 55 on package pin 26 */
 #define MOTOR2_CTRL3_PORT                                                (GPIOA)
 #define MOTOR2_CTRL3_PIN                                        (DL_GPIO_PIN_25)
@@ -427,7 +416,6 @@ void SYSCFG_DL_TIMER_A0_100us_init(void);
 void SYSCFG_DL_I2C_0_init(void);
 void SYSCFG_DL_USB_UART_0_init(void);
 void SYSCFG_DL_UART_1_init(void);
-void SYSCFG_DL_UART_0_init(void);
 void SYSCFG_DL_SPI_0_init(void);
 void SYSCFG_DL_VCC_ADC_init(void);
 void SYSCFG_DL_ADC1_init(void);

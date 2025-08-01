@@ -2,8 +2,14 @@
 
 extern PID_Controller pid_left;
 extern PID_Controller pid_right;
-int x = 359;
-int y = 225;
+int x = 313;
+int y = 271;
+
+int R_pixel = 0;
+int distance = 0;
+bool Receive = false;
+
+
 typedef struct {
     uint8_t buffers[2][256];  // 双缓冲区
     volatile uint8_t active_idx;     // 当前写入的缓冲区索引
@@ -100,17 +106,25 @@ void UART0_ProcessFrame(void) {
     //         y = 225;
     //     }
     // }
+
+    // if (sscanf(&frame[1], "%f,%f,%f", &pid_left.Kp, &pid_left.Ki,&pid_left.Kd) != 2) {
+
     // 解析有效帧
     if (frame[0] == '!') {
-        if (sscanf(&frame[1], "%f,%f,%f", &pid_left.Kp, &pid_left.Ki,&pid_left.Kd) != 2) {
-            x = 359;  // 解析失败时重置默认值
-            y = 225;
+        if (sscanf(&frame[1], "%d,%d,%d,%d", &x, &y,&R_pixel,&distance) != 4) {
+            x = 313;  // 解析失败时重置默认值
+            y = 271;
         }
         if(x==0)
         {
-            x = 359;  // 解析失败时重置默认值
-            y = 225;
+            x = 313;  // 解析失败时重置默认值
+            y = 271;
         }
+        Receive = true;
+    }
+    else {
+         x = 313;  // 解析失败时重置默认值
+            y = 271;
     }
     // 非'!'帧不处理但不清空缓冲区
 

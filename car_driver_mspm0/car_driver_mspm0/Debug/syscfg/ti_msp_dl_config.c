@@ -65,7 +65,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_init(void)
     SYSCFG_DL_I2C_0_init();
     SYSCFG_DL_USB_UART_0_init();
     SYSCFG_DL_UART_1_init();
-    SYSCFG_DL_UART_0_init();
     SYSCFG_DL_SPI_0_init();
     SYSCFG_DL_VCC_ADC_init();
     SYSCFG_DL_ADC1_init();
@@ -122,7 +121,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_I2C_reset(I2C_0_INST);
     DL_UART_Main_reset(USB_UART_0_INST);
     DL_UART_Main_reset(UART_1_INST);
-    DL_UART_Main_reset(UART_0_INST);
     DL_SPI_reset(SPI_0_INST);
     DL_ADC12_reset(VCC_ADC_INST);
     DL_ADC12_reset(ADC1_INST);
@@ -138,7 +136,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_initPower(void)
     DL_I2C_enablePower(I2C_0_INST);
     DL_UART_Main_enablePower(USB_UART_0_INST);
     DL_UART_Main_enablePower(UART_1_INST);
-    DL_UART_Main_enablePower(UART_0_INST);
     DL_SPI_enablePower(SPI_0_INST);
     DL_ADC12_enablePower(VCC_ADC_INST);
     DL_ADC12_enablePower(ADC1_INST);
@@ -181,10 +178,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
         GPIO_USB_UART_0_IOMUX_RX, GPIO_USB_UART_0_IOMUX_RX_FUNC);
     DL_GPIO_initPeripheralOutputFunction(
         GPIO_UART_1_IOMUX_TX, GPIO_UART_1_IOMUX_TX_FUNC);
-    DL_GPIO_initPeripheralOutputFunction(
-        GPIO_UART_0_IOMUX_TX, GPIO_UART_0_IOMUX_TX_FUNC);
-    DL_GPIO_initPeripheralInputFunction(
-        GPIO_UART_0_IOMUX_RX, GPIO_UART_0_IOMUX_RX_FUNC);
 
     DL_GPIO_initPeripheralOutputFunction(
         GPIO_SPI_0_IOMUX_SCLK, GPIO_SPI_0_IOMUX_SCLK_FUNC);
@@ -200,6 +193,8 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_initDigitalOutputFeatures(SPI0_CS0_IOMUX,
 		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
 		 DL_GPIO_DRIVE_STRENGTH_LOW, DL_GPIO_HIZ_DISABLE);
+
+    DL_GPIO_initDigitalOutput(GPIO_LASER_PIN_3_IOMUX);
 
     DL_GPIO_initDigitalOutput(OLED_RESET_IOMUX);
 
@@ -282,6 +277,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
     DL_GPIO_initDigitalOutput(Gray_Address_PIN_2_IOMUX);
 
     DL_GPIO_clearPins(GPIOA, SPI0_CS0_PIN |
+		GPIO_LASER_PIN_3_PIN |
 		OLED_CS_PIN |
 		MOTOR2_CTRL3_PIN |
 		MOTOR3_CTRL6_PIN |
@@ -291,6 +287,7 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		Gray_Address_PIN_0_PIN |
 		Gray_Address_PIN_2_PIN);
     DL_GPIO_enableOutput(GPIOA, SPI0_CS0_PIN |
+		GPIO_LASER_PIN_3_PIN |
 		OLED_CS_PIN |
 		MOTOR2_CTRL3_PIN |
 		MOTOR3_CTRL6_PIN |
@@ -299,7 +296,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		KEY_H4_PIN |
 		Gray_Address_PIN_0_PIN |
 		Gray_Address_PIN_2_PIN);
-    DL_GPIO_setLowerPinsPolarity(GPIOA, DL_GPIO_PIN_12_EDGE_FALL);
     DL_GPIO_clearPins(GPIOB, OLED_RESET_PIN |
 		OLED_DC_PIN |
 		MOTOR1_CTRL1_PIN |
@@ -326,7 +322,8 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		Gray_Address_PIN_1_PIN);
     DL_GPIO_setLowerPinsPolarity(GPIOB, DL_GPIO_PIN_5_EDGE_FALL |
 		DL_GPIO_PIN_14_EDGE_FALL);
-    DL_GPIO_setUpperPinsPolarity(GPIOB, DL_GPIO_PIN_23_EDGE_FALL |
+    DL_GPIO_setUpperPinsPolarity(GPIOB, DL_GPIO_PIN_24_EDGE_FALL |
+		DL_GPIO_PIN_23_EDGE_FALL |
 		DL_GPIO_PIN_20_EDGE_RISE_FALL |
 		DL_GPIO_PIN_19_EDGE_RISE_FALL);
     DL_GPIO_clearInterruptStatus(GPIOB, KEY1_PB5_PIN |
@@ -723,37 +720,6 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_1_init(void)
 
 
     DL_UART_Main_enable(UART_1_INST);
-}
-static const DL_UART_Main_ClockConfig gUART_0ClockConfig = {
-    .clockSel    = DL_UART_MAIN_CLOCK_BUSCLK,
-    .divideRatio = DL_UART_MAIN_CLOCK_DIVIDE_RATIO_1
-};
-
-static const DL_UART_Main_Config gUART_0Config = {
-    .mode        = DL_UART_MAIN_MODE_NORMAL,
-    .direction   = DL_UART_MAIN_DIRECTION_TX_RX,
-    .flowControl = DL_UART_MAIN_FLOW_CONTROL_NONE,
-    .parity      = DL_UART_MAIN_PARITY_NONE,
-    .wordLength  = DL_UART_MAIN_WORD_LENGTH_8_BITS,
-    .stopBits    = DL_UART_MAIN_STOP_BITS_ONE
-};
-
-SYSCONFIG_WEAK void SYSCFG_DL_UART_0_init(void)
-{
-    DL_UART_Main_setClockConfig(UART_0_INST, (DL_UART_Main_ClockConfig *) &gUART_0ClockConfig);
-
-    DL_UART_Main_init(UART_0_INST, (DL_UART_Main_Config *) &gUART_0Config);
-    /*
-     * Configure baud rate by setting oversampling and baud rate divisors.
-     *  Target baud rate: 9600
-     *  Actual baud rate: 9600.24
-     */
-    DL_UART_Main_setOversampling(UART_0_INST, DL_UART_OVERSAMPLING_RATE_16X);
-    DL_UART_Main_setBaudRateDivisor(UART_0_INST, UART_0_IBRD_32_MHZ_9600_BAUD, UART_0_FBRD_32_MHZ_9600_BAUD);
-
-
-
-    DL_UART_Main_enable(UART_0_INST);
 }
 
 static const DL_SPI_Config gSPI_0_config = {

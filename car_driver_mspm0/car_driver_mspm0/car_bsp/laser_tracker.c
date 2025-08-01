@@ -13,14 +13,14 @@ float integral_x = 0, integral_y = 0;          // 积分项
 float prev_error_x = 0, prev_error_y = 0;      // 上一次误差
 
 // 水平方向PID参数（较大系数）
-#define KP_X      0.07f  // 比例系数（较大值）
-#define KI_X      0.003f  // 积分系数
-#define KD_X      0.06f // 微分系
+#define KP_X      0.3f  // 比例系数（较大值）
+#define KI_X      0.01f  // 积分系数
+#define KD_X      0.1f // 微分系
 
 // 垂直方向PID参数（较小系数）
-#define KP_Y      0.01f  // 比例系数（较小值）
-#define KI_Y      0.0005f
-#define KD_Y      0.001f
+#define KP_Y      0.3f  // 比例系数（较小值）
+#define KI_Y      0.01f
+#define KD_Y      0.09f
 
 // 系统全局变量
 SystemMode system_mode = MODE_RADAR_SCANNING;   // 当前系统模式
@@ -41,12 +41,11 @@ int move_counter = 0;      // 移动计数器
 int consecutive_steps = 0; // 连续移动步数
 bool allow_move = 1;       // 允许移动标志
 
-// 雷达预瞄准控制变量
-int radar_aiming = 0;          // 是否正在预瞄准
-int radar_aiming_counter = 0;  // 预瞄准倒计时
-float last_radar_angle = 0.0f; // 上一次雷达瞄准角度（弧度）
+
 bool lock_flag=false;
 extern float adjust;
+extern int distance;
+extern uint8_t laser_flag;
 
 // 运动预测参数
 const float PREDICTION_FACTOR = 0.3f;          // 预测因子
@@ -72,108 +71,25 @@ static float constrain_float(float value, float min, float max) {
     return (value < min) ? min : ((value > max) ? max : value);
 }
 
-// // 检查角度偏差是否超出范围（π/6）
-// static int is_angle_out_of_range(float current_angle) {
-//     float angle_diff = fabs(current_angle - last_radar_angle);
-    
-//     // 处理角度环绕
-//     if (angle_diff > M_PI) {
-//         angle_diff = 2 * M_PI - angle_diff;
-//     }
-    
-//     // 判断是否超出π/6范围（30度）
-//     return (angle_diff > M_PI/18);
-// }
 
-// // 雷达预瞄准函数
-// void radar_pre_aim(float enemy_x, float enemy_y) {
-//     // 计算目标角度（相对于正前方）
-//     float angle_rad = atan2(-enemy_y, -enemy_x);
-    
-//     // 判断是否需要启动预瞄准
-//     if (!radar_aiming && (system_mode == MODE_RADAR_SCANNING || is_angle_out_of_range(angle_rad))) {
-//         radar_aiming = 1;
-//         radar_aiming_counter = 200;  // 设置预瞄准时长
-//         last_radar_angle = angle_rad;  // 记录当前角度
-//         system_mode = MODE_RADAR_SCANNING;
-//     }
-    
-//     // 处理预瞄准过程
-//     if (radar_aiming) {
-//         // 倒计时递减
-//         radar_aiming_counter--;
-        
-//         // 角度转换为舵机位置（0-4095）
-//         float angle_deg = angle_rad * 180.0f / M_PI;
-        
-//         if (angle_deg > 0) {
-//             target_position = (int)((270.0f - angle_deg) * 4096.0f / 360.0f) % 4096 - 148;
-//         } else {
-//             target_position = (int)((-90.0f - angle_deg) * 4096.0f / 360.0f) % 4096 - 148;
-//         }
-        
-//         // 位置限幅
-//         if (target_position < 1000) target_position = 1000;
-//         if (target_position > 3200) target_position = 3200;
-        
-//         // 计算目标距离
-//         float distance = sqrt(enemy_x * enemy_x + enemy_y * enemy_y);
-        
-//         // 根据距离设置移动速度
-//         int move_speed = 1000;  // 默认速度
-//         if (distance < RADAR_MIN_RANGE) {
-//             move_speed = 1500;  // 目标过近，快速响应
-//         } else if (distance > RADAR_MAX_RANGE * 0.7) {
-//             move_speed = 1000;  // 目标较远，慢速移动
-//         }
-        
-//         // 更新雷达舵机位置
-//         radar_servo_position = target_position;
-        
-//         // 控制水平舵机
-//         Servo_SetPosition(1, target_position, move_speed);
-        
-//         // 控制垂直舵机（保持中位）
-//         Servo_SetPosition(2, servo_y, move_speed);
-        
-//         // 检查预瞄准是否完成
-//         if (radar_aiming_counter <= 0) {
-//             radar_aiming = 0;
-//             system_mode = MODE_CAMERA_TRACKING;  // 切换到摄像头追踪模式
-            
-//             // 初始化追踪状态
-//             velocity_x = 0.0f;
-//             velocity_y = 0.0f;
-//             fine_servo_x.base = target_position;
-//             fine_servo_x.fine = 0;
-//             servo_x = target_position;
-//         }
-        
-//         // 重置锁定计数器
-//         lock_count = 0;
-//         return;
-//     }
-    
-//     // 非预瞄准状态处理（雷达扫描模式）
-//     if (system_mode == MODE_RADAR_SCANNING) {
-//         // 此处可添加扫描模式的具体行为
-//     }
-// }
+
+
+int laser_y = CAMERA_CENTER_Y;
 
 // 摄像头追踪控制函数
 void control_camera(int obj_x, int obj_y) {
-    // // 非追踪模式直接返回
-    // if (system_mode != MODE_CAMERA_TRACKING) {
-    //      allow_move = 0;
-    //     return;
-    // }
-    // else allow_move = 1;
+    
+   if(distance<=600) laser_y = 277;
+    else if(distance>=601&&distance<=800) laser_y = 276;
+    else if(distance>=801&&distance<=1000) laser_y = 275;
+    else if(distance>=1001) laser_y = 273;
+
 
     
     // 计算目标移动量
     int delta_x = obj_x - last_obj_x;
     int delta_y = obj_y - last_obj_y;
-    
+
     // 更新历史位置
     last_obj_x = obj_x;
     last_obj_y = obj_y;
@@ -194,10 +110,10 @@ void control_camera(int obj_x, int obj_y) {
     
     // 计算与图像中心的误差
     int error_x = CAMERA_CENTER_X - predicted_x;
-    int error_y = CAMERA_CENTER_Y - predicted_y;
+    int error_y = laser_y - predicted_y;
     
     // 微调步长设置
-    const float FINE_STEP_SIZE = 0.2f;
+    const float FINE_STEP_SIZE = 0.5f;
     float fine_step_x = 0;
     float fine_step_y = 0;
     
@@ -226,6 +142,12 @@ void control_camera(int obj_x, int obj_y) {
     //     buzzer_mark=0;
     // }
 
+if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y)
+       {  if(laser_flag  ==0)
+            laser_flag=1;
+       }
+
+
     // 锁定状态判断
     if (abs(error_x) <= LOCK_THRESHOLD_X && abs(error_y) <= LOCK_THRESHOLD_Y) {
         lock_count++;
@@ -235,6 +157,7 @@ void control_camera(int obj_x, int obj_y) {
             velocity_x = 0.0f;
             velocity_y = 0.0f;
             lock_flag=true;
+
             return;
         }
     } else {
