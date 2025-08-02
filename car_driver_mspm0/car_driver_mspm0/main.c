@@ -60,7 +60,7 @@
 #define MAX_TURN_COUNT 40         // 最大转弯计数
 
        // 在全局变量区新增
-#define TURN_ANGLE 80.0f       // 目标转弯角度(略小于90度用于提前量)
+#define TURN_ANGLE 83.0f       // 目标转弯角度(略小于90度用于提前量)
 #define MIN_TURN_STRENGTH 0.3f // 最小转弯强度
 #define MAX_TURN_STRENGTH 0.6f // 最大转弯强度
 
@@ -100,7 +100,7 @@ void handle_key_press(char key) {
         case '*':  // 开始白校准
             calib_state = CALIB_WHITE_WAITING;
             calib_start_time = current_time;
-            printf( "Place sensor on WHITE surface and press #\r\n");
+            // printf( "Place sensor on WHITE surface and press #\r\n");
             
             break;
             
@@ -110,19 +110,19 @@ void handle_key_press(char key) {
                 Get_Anolog_Value(&sensor, white);
                 calib_state = CALIB_BLACK_WAITING;
                 calib_start_time = current_time;
-                printf("Initial Anolog %d-%d-%d-%d-%d-%d-%d-%d\r\n",
-            Anolog[0],Anolog[1],Anolog[2],Anolog[3],
-            Anolog[4],Anolog[5],Anolog[6],Anolog[7]);
-                printf("Place sensor on BLACK surface and press #\r\n");
+            //     printf("Initial Anolog %d-%d-%d-%d-%d-%d-%d-%d\r\n",
+            // Anolog[0],Anolog[1],Anolog[2],Anolog[3],
+            // Anolog[4],Anolog[5],Anolog[6],Anolog[7]);
+                // printf("Place sensor on BLACK surface and press #\r\n");
             } 
             else if(calib_state == CALIB_BLACK_WAITING) {
                 // 保存黑值
                 Get_Anolog_Value(&sensor, black);
                 calib_state = CALIB_COMPLETED;
-                printf("Initial Anolog %d-%d-%d-%d-%d-%d-%d-%d\r\n",
-            Anolog[0],Anolog[1],Anolog[2],Anolog[3],
-            Anolog[4],Anolog[5],Anolog[6],Anolog[7]);
-                printf( "Calibration completed!\r\n");
+            //     printf("Initial Anolog %d-%d-%d-%d-%d-%d-%d-%d\r\n",
+            // // Anolog[0],Anolog[1],Anolog[2],Anolog[3],
+            // Anolog[4],Anolog[5],Anolog[6],Anolog[7]);
+                // printf( "Calibration completed!\r\n");
                 
                 // 使用新的校准值重新初始化传感器
                 No_MCU_Ganv_Sensor_Init(&sensor, white, black);
@@ -146,6 +146,7 @@ char sM3_C[4];
 /* IMU数值 */
 float ypr[3]; // 上传yaw pitch roll的值
 float adjust=0.0;
+float pre_adjust=0.0;
 /* 记录上一时刻和当前时刻编码器数值 */
 int a1,a2,b1,b2;
 
@@ -185,6 +186,8 @@ char show_key ={0};
 extern bool Receive;
 extern int distance;
 extern int adjusted_y;
+uint8_t randon_flag=0;
+uint16_t servo_speed=1000;
 
 /* 将逻辑电平转化为数据，灰度中心离巡线越远，数值变化越大，变化范围-8~+8，有缺陷，但寻单个曲线足够 */
 void update_speed_sum(uint8_t data, uint32_t* speed_sum) 
@@ -217,8 +220,8 @@ int main(void)
     SYSCFG_DL_init();
     PID_Init(&pid_left, 3, 2.3, 0.008, 0.01, 1000);
     PID_Init(&pid_right, 2.9, 2.2, 0.008, 0.01, 1000);
-    pid_left.integral=BASE_SPEED*1.6;
-    pid_right.integral=BASE_SPEED*1.8;
+    pid_left.integral=BASE_SPEED*1.4;
+    pid_right.integral=BASE_SPEED*1.6;
     /* 初始化调试串口 */
     usb_uart0_IRQ_init();
     delay_ms(100); // 等待部署
@@ -254,7 +257,7 @@ int main(void)
     // NVIC_EnableIRQ(TIMER_G12_1ms_INST_INT_IRQN);
     for (int i=0; i <100; i++) {
     IMU_getYawPitchRoll(ypr); 
-    Servo_SetPosition(1, prime_x1+1200 , 700);
+    Servo_SetPosition(1, prime_x1 , 700);
     Servo_SetPosition(2, prime_y1 , 700);
     delay_ms(10);
     }
@@ -279,15 +282,13 @@ int main(void)
     motor_init();
 
     
-
-
     while (1) 
     {
         static uint32_t oled_count=0;
-        static uint16_t oled_duty=10000;
+        static uint16_t oled_duty=50;
 
         UART0_ProcessFrame();
-        printf("%.1f,%.1f\n",speed3,speed4);
+        // printf("%.1f,%.1f\n",speed3,speed4);
         // yaw_f-=0.01478;
         
 		IMU_getYawPitchRoll(ypr);
@@ -321,6 +322,14 @@ int main(void)
         circle=input-'0';
         else if(input=='A')
         servo_flag=1;
+        else if(input=='B'){
+        randon_flag=1;
+        servo_speed=1000;
+        }
+        else if(input=='C'){
+        randon_flag=1;
+        servo_speed=2000;
+        }
         else if(input=='D'){//重置
             EN=-1;
             circle=0;
@@ -333,11 +342,12 @@ int main(void)
             TURN_COUNT=0;
             laser_flag=0;
             DL_GPIO_clearPins(GPIO_LASER_PORT, GPIO_LASER_PIN_3_PIN);
-            Servo_SetPosition(1, prime_x1 , 700);
-            Servo_SetPosition(2, prime_y1 , 700);
+            Servo_SetPosition(1, prime_x1 , 1000);
+            Servo_SetPosition(2, prime_y1 , 1000);
             mibu=0;
             turn_flag = 0;
             turn_count = 0;
+            randon_flag=0;
         }
 // 传感器常规任务
         No_Mcu_Ganv_Sensor_Task_Without_tick(&sensor);
@@ -347,33 +357,33 @@ int main(void)
 
         if(oled_count++%oled_duty==0){
             OLED_Clear();
-            OLED_DrawBMP(0, 0, 16, 2  , qishi);
-            OLED_ShowString(16,0,"M3:");
-            // OLED_ShowString(72,0,"M4:");
+        //     OLED_DrawBMP(0, 0, 16, 2  , qishi);
+        //     OLED_ShowString(16,0,"M3:");
+        //     // OLED_ShowString(72,0,"M4:");
             OLED_ShowString(0,2,"yaw  :");
-            OLED_ShowString(0,4,"EN:");
-            OLED_ShowString(0,6,"x :");
-            OLED_ShowString(64,6,"y :");
-            sprintf(syaw, "%.2f", yaw);
-            sprintf(spitch, "%d  %c", EN,input);
-            sprintf(sroll, "%d", x);
-            sprintf(srol, "%d", y);
+        //     OLED_ShowString(0,4,"EN:");
+        //     OLED_ShowString(0,6,"x :");
+        //     OLED_ShowString(64,6,"y :");
+            sprintf(syaw, "%.1f", yaw);
+        //     sprintf(spitch, "%d  %c", EN,input);
+        //     sprintf(sroll, "%d", a1);
+        //     sprintf(srol, "%d", b1);
             
-            // sprintf(sM3_C, "%d", (Digtal>>3)&0x01);
-            // sprintf(sM4_C, "%d",(Digtal>>4)&0x01);
-            // sprintf(sM3_C, "%d%d%d%d %d%d%d%d", (Digtal >> 0) & 0x01,
-            // (Digtal >> 1) & 0x01, (Digtal >> 2) & 0x01, (Digtal >> 3) & 0x01,
-            // (Digtal >> 4) & 0x01, (Digtal >> 5) & 0x01, (Digtal >> 6) & 0x01,
-            // (Digtal >> 7) & 0x01);
-            // sprintf(sM4_C, "%.0f",speed4);
-            sprintf(sM3_C, "%.0f",speed3);
-            sprintf(sM4_C, "%.0f",speed4);
+        //     sprintf(sM3_C, "%d", (Digtal>>3)&0x01);
+        //     sprintf(sM4_C, "%d",(Digtal>>4)&0x01);
+            sprintf(sM3_C, "%d%d%d%d %d%d%d%d", (Digtal >> 0) & 0x01,
+            (Digtal >> 1) & 0x01, (Digtal >> 2) & 0x01, (Digtal >> 3) & 0x01,
+            (Digtal >> 4) & 0x01, (Digtal >> 5) & 0x01, (Digtal >> 6) & 0x01,
+            (Digtal >> 7) & 0x01);
+        //     // sprintf(sM4_C, "%.0f",speed4);
+        //     // sprintf(sM3_C, "%.0f",speed3);
+        //     // sprintf(sM4_C, "%.0f",speed4);
             OLED_ShowString(40,0,sM3_C);
-            OLED_ShowString(96,0,sM4_C);
+        //     // OLED_ShowString(96,0,sM4_C);
             OLED_ShowString(54,2,syaw);
-            OLED_ShowString(54,4,spitch);
-            OLED_ShowString(24,6,sroll);
-            OLED_ShowString(96,6,srol);
+        //     OLED_ShowString(54,4,spitch);
+        //     OLED_ShowString(24,6,sroll);
+        //     OLED_ShowString(96,6,srol);
             SPI0_reload();
         }
         a1=get_motor_enc_count(3);
@@ -400,28 +410,64 @@ int main(void)
     
         //  Servo_SetPosition(1,servo_x+adjust,1000);
         int road_tmp=b1-start_count;
+
         switch(TURN_COUNT%4){
-            case 1:if(road_tmp>400)
+            case 1:if(road_tmp>400){
                        mibu_x=-(road_tmp-400)/800*10;
+                    }
+                    //    adjust=(atan2(600,600+road_tmp)/3.1415926*180-yaw)/360*4096;
+                    if(turn_flag==1)
+                    adjust=atan2(750,1775+road_tmp)/3.1415926*2048*1.12-yaw/360*4096;
+                    else
+                    adjust=atan2(750,800+road_tmp)/3.1415926*2048*1.2-yaw/360*4096;
                     break;
-            case 0: if (TURN_COUNT==0) {
+            case 0: if (TURN_COUNT==0||turn_flag==1) {
+                      
+                       adjust=(atan2(450+road_tmp,750)/3.1415926*180*1.04-yaw)/360*4096;
                        mibu_x=10;
                     }
-                    else
+                    else{
                        mibu_x=road_tmp/1200*20-10;
+                       adjust=-atan2(750-road_tmp,750)/3.1415926*2048*1.05-yaw/360*4096;
+                    }
                     break;
             case 3:if(road_tmp<800)
                        mibu_x=10-road_tmp/800*10;
+                    if (turn_flag==1) {
+                        adjust=-atan2(750,1050-road_tmp)/3.1415926*2048*1.0-yaw/360*4096;
+                    }
+                    else
+                    adjust=-atan2(750,2200-road_tmp)/3.1415926*2048*1.07-yaw/360*4096;
                     break;
+
+
+            case 2:mibu_x=0;
+                   if(turn_flag==1)
+                   adjust=atan2(-road_tmp-450,2200)/3.1415926*2048*0.85-yaw/360*4096;
+                else
+                   adjust=atan2(750-road_tmp,2200)/3.1415926*2048*1.0-yaw/360*4096;
+                   break;
             default:mibu_x=0;
                     break;
         }
+        if((adjust-pre_adjust)<=5&&(adjust-pre_adjust)>=-5)
+            adjust=pre_adjust;
+        pre_adjust=adjust;
+        if(randon_flag==1){
+        adjust=-yaw/360*4096;
+        mibu_x=0;
+        }
+        else
+        servo_speed=1000;
         if(servo_flag==1){
-            if(Receive)
-         control_camera(x+mibu_x, y+mibu_y);
+            // laser_flag=1;
+            if(Receive==true){
+             control_camera(x+mibu_x, 266);
+             Receive=false;
+            }
 
-         Servo_SetPosition(1, servo_x, 1500);
-         Servo_SetPosition(2, servo_y, 900);
+         Servo_SetPosition(1, servo_x+adjust, servo_speed);
+        //  Servo_SetPosition(2, servo_y, 900);
 
 
          if(laser_flag==1){
@@ -456,7 +502,7 @@ int main(void)
                     else right_sensors++;
                 }
             }
-            oled_duty=10000;
+            // oled_duty=10000;
         }
         // 2. 处理不同检测情况
         if (sensor_count > 0) {
@@ -473,6 +519,7 @@ int main(void)
             if (left_sensors >= TURN_THRESHOLD) {
                 // 左转
                 is_turn = 1;
+                start_count=b1;
             }
         }
         
@@ -487,8 +534,11 @@ int main(void)
         
  
 // 修改后的转弯处理代码（替换原来的转弯处理部分）
-if (is_turn ==1 && turn_flag == 0) {
-    turn_count=4;
+if (is_turn ==1 && turn_flag==0){
+    
+    turn_count=3;
+    if(TURN_COUNT==0)
+    turn_count=8;
     turn_flag = 1;
     turn_start_yaw = yaw; // 记录开始转弯时的初始角度
     current_base_speed *= TURN_SLOW_DOWN_FACTOR;
@@ -515,7 +565,7 @@ if (turn_flag == 1&&turn_count==0) {
         right_target = (current_base_speed * turn_strength)*0.3;
     } else {
         // 转弯完成时，初始化渐变加速
-    speed_ramp_factor = 0.2;  // 从60%速度开始恢复
+    speed_ramp_factor = 0.4;  // 从60%速度开始恢复
     turn_flag = 0;
     TURN_COUNT++;
     start_count = b1;
@@ -543,6 +593,7 @@ EN = -1;
         
 
         /* 轮询基本延时 */
-       //   delay_ms(4);
+       //   delay_ms(4); 
     }
+   
 }

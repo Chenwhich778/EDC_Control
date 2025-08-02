@@ -13,9 +13,9 @@ float integral_x = 0, integral_y = 0;          // 积分项
 float prev_error_x = 0, prev_error_y = 0;      // 上一次误差
 
 // 水平方向PID参数（较大系数）
-#define KP_X      0.3f  // 比例系数（较大值）
-#define KI_X      0.02f  // 积分系数
-#define KD_X      0.006f // 微分系
+#define KP_X      0.04f  // 比例系数（较大值）
+#define KI_X      0.001f  // 积分系数
+#define KD_X      0.003f // 微分系
 
 // 垂直方向PID参数（较小系数）
 #define KP_Y      0.09f  // 比例系数（较小值）
@@ -87,13 +87,13 @@ void control_camera(int obj_x, int obj_y) {
     // max_adjustment_range = 480 * 0.2;
     // y_offset = (distance_ratio - 1) * max_adjustment_range * 0.25;
     // adjusted_y = laser_y - (int)y_offset;
-    if(distance >= 600){
-    int interval = (distance - 600) / 100;  // 整数除法
-    laser_y = 266 - 3 * (interval + 1);
-} else {
-    laser_y = 266;
-}
-    constrain(laser_y, 250, 266);
+//     if(distance >= 600){
+//     int interval = (distance - 600) / 100;  // 整数除法
+//     laser_y = 266 - 3 * (interval + 1);
+// } else {
+//     laser_y = 266;
+// }
+//     constrain(laser_y, 250, 266);
 
     
     // 计算目标移动量
@@ -154,7 +154,7 @@ void control_camera(int obj_x, int obj_y) {
     //     buzzer_mark=0;
     // }
 
-if (abs(error_x) <= 5 && abs(error_y) <= 5)
+if (abs(error_x) <= 5)
        { 
         Lock_count++;
         if (Lock_count >= 2){
@@ -192,7 +192,7 @@ else {
         pre_out_x = pid_output;
         prev_error_x = error_x;
         fine_step_x = -pid_output;
-        constrain_float(fine_step_x, 0, 10*FINE_STEP_SIZE);
+        constrain_float(fine_step_x, 0, 7*FINE_STEP_SIZE);
     } else {
         integral_x = 0;
     }
@@ -223,6 +223,8 @@ else {
             fine_servo_x.fine -= actual_step;
             consecutive_steps++;
             servo_x = fine_servo_x.base;
+            // if(servo_x>100)servo_x=150;
+            // else if(servo_x<-100)servo_x=-150;
         }
     }
     
@@ -234,7 +236,7 @@ else {
             fine_servo_y.fine -= actual_step;
             consecutive_steps++;
             servo_y = fine_servo_y.base;
-
+            
         }
     }
     
